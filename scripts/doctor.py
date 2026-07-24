@@ -93,6 +93,13 @@ def main() -> int:
             print(f"ERROR VK client: {exc}")
             errors += 1
 
+    if errors and not os.environ.get("VK_ACCESS_TOKEN", "").strip():
+        print(
+            "HINT secrets not visible in this VM session. "
+            "Restart Cloud Agent after adding Cursor Runtime Secrets, "
+            "then run: bash scripts/run_pipeline.sh"
+        )
+
     print(f"SUMMARY errors={errors} warnings={warnings}")
     return 1 if errors else 0
 
