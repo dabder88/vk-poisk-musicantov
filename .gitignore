@@ -1,0 +1,15 @@
+.env
+.env.local
+*.local
+__pycache__/
+*.pyc
+.pytest_cache/
+node_modules/
+tmp/
+
+.cursor/vk-join-handoff.md
+.cursor/vk-join-fragments/
+
+memory/runs/*/
+!memory/runs/.gitkeep
+memory/site.env.local

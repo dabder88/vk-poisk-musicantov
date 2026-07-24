@@ -1,0 +1,28 @@
+Ты работаешь в GitHub repo vk-poisk-musicantov в Cursor Cloud.
+
+Запусти полный VK join-request pipeline через Director. Не выполняй роли сам.
+
+0. Прочитай AGENTS.md и docs/vk-closed-group-join-requests.md.
+1. Запусти python3 scripts/doctor.py.
+2. Создай runtime handoff из shared/pipeline-handoff.template.md в .cursor/vk-join-handoff.md.
+3. Сгенерируй run_id (формат R-YYYYMMDD-HHMM).
+4. python3 scripts/start_run.py --run-id <id>.
+5. Task(vk-fetch) → fetch gate PASS.
+6. Task(vk-decide) → decision.json.
+7. Task(vk-approve) → approve-results.json (уважай APPROVE_ALLOW и DRY_RUN).
+8. Task(vk-qa) → validate_run PASS.
+9. Если memory/pipeline-fix-queue.md содержит status: open, Task(vk-fixer).
+
+Политика: shared/approve-policy.md (mode approve_all).
+
+Запрещено:
+- single-agent pipeline;
+- live approve при APPROVE_ALLOW=no или DRY_RUN=yes;
+- secrets в handoff/log/commit.
+
+Финальный ответ:
+- run_id;
+- количество заявок;
+- сколько одобрено / dry-run;
+- QA verdict;
+- incident_queue status.

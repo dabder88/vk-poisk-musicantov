@@ -1,0 +1,111 @@
+"""Shared VK API client for join-request automation."""
+
+from __future__ import annotations
+
+import os
+from typing import Any
+
+import requests
+
+DEFAULT_API_VERSION = "5.199"
+API_BASE = "https://api.vk.com/method"
+
+
+class VkApiError(Exception):
+    def __init__(self, code: int, message: str, method: str) -> None:
+        self.code = code
+        self.message = message
+        self.method = method
+        super().__init__(f"VK API {method} error {code}: {message}")
+
+
+class VkClient:
+    def __init__(
+        self,
+        access_token: str,
+        group_id: int,
+        api_version: str = DEFAULT_API_VERSION,
+    ) -> None:
+        self.access_token = access_token
+        self.group_id = group_id
+        self.api_version = api_version
+
+    @classmethod
+    def from_env(cls) -> "VkClient":
+        token = os.environ.get("VK_ACCESS_TOKEN", "").strip()
+        group_raw = os.environ.get("VK_GROUP_ID", "").strip()
+        version = os.environ.get("VK_API_VERSION", DEFAULT_API_VERSION).strip()
+
+        if not token:
+            raise ValueError("VK_ACCESS_TOKEN is not set")
+        if not group_raw:
+            raise ValueError("VK_GROUP_ID is not set")
+
+        return cls(
+            access_token=token,
+            group_id=int(group_raw),
+            api_version=version,
+        )
+
+    def call(self, method: str, **params: Any) -> Any:
+        payload = {
+            "access_token": self.access_token,
+            "v": self.api_version,
+            **params,
+        }
+        response = requests.post(
+            f"{API_BASE}/{method}",
+            data=payload,
+            timeout=30,
+        )
+        response.raise_for_status()
+        body = response.json()
+
+        if "error" in body:
+            err = body["error"]
+            raise VkApiError(
+                code=int(err.get("error_code", -1)),
+                message=str(err.get("error_msg", "unknown")),
+                method=method,
+            )
+
+        return body.get("response")
+
+    def get_requests(self, count: int = 100, offset: int = 0) -> list[int]:
+        response = self.call(
+            "groups.getRequests",
+            group_id=self.group_id,
+            count=count,
+            offset=offset,
+        )
+        if not response:
+            return []
+        if isinstance(response, dict):
+            items = response.get("items", [])
+            return [int(x) for x in items]
+        return [int(x) for x in response]
+
+    def approve_request(self, user_id: int) -> bool:
+        result = self.call(
+            "groups.approveRequest",
+            group_id=self.group_id,
+            user_id=user_id,
+        )
+        return int(result) == 1
+
+    def probe_token(self) -> dict[str, Any]:
+        """Smoke-test: can we list join requests?"""
+        try:
+            requests_list = self.get_requests(count=1)
+            return {
+                "ok": True,
+                "method": "groups.getRequests",
+                "pending_count_sample": len(requests_list),
+            }
+        except VkApiError as exc:
+            return {
+                "ok": False,
+                "method": "groups.getRequests",
+                "error_code": exc.code,
+                "error_message": exc.message,
+            }
