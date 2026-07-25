@@ -11,12 +11,15 @@
 
 ## Что нужно от вас (2 значения)
 
-Добавьте в **Cursor Dashboard → Cloud Agents → Secrets** для этого репозитория:
+Добавьте в **Cursor Dashboard → Cloud Agents → Secrets**:
 
 | Secret | Что это |
 |--------|---------|
 | `VK_GROUP_ID` | Числовой ID группы (без минуса). Например, для `vk.com/club123456` → `123456` |
-| `VK_ACCESS_TOKEN` | Ключ из группы: **Управление → Дополнительно → Работа с API → Ключи доступа → Создать ключ** с правом **«Управление сообществом»** |
+| `VK_ACCESS_TOKEN` | **User token** администратора группы с правом `groups` (НЕ ключ сообщества из «Ключи доступа») |
+
+> Ключ из **Работа с API → Ключи доступа** не подходит — VK вернёт error 27.
+> Инструкция: `docs/how-to-get-vk-user-token.md`
 
 Опционально (можно позже):
 
@@ -25,14 +28,11 @@
 | `APPROVE_ALLOW` | `no` → `yes` | После успешного dry-run |
 | `DRY_RUN` | `yes` → `no` | Вместе с `APPROVE_ALLOW=yes` для реального приёма |
 
-## Как получить токен (30 секунд)
+## Как получить токен
 
-1. Откройте вашу группу ВК (вы — администратор)
-2. **Управление → Дополнительно → Работа с API**
-3. Вкладка **Ключи доступа → Создать ключ**
-4. Отметьте **Управление сообществом** (manage)
-5. Подтвердите в приложении ВК
-6. Скопируйте ключ → вставьте в `VK_ACCESS_TOKEN` в Cursor Secrets
+Кратко: нужен **user token** с правом `groups`, обычно через приложение VK ID + запрос в поддержку VK.
+
+Пошагово: **`docs/how-to-get-vk-user-token.md`**
 
 ## Запуск
 
@@ -79,9 +79,13 @@ python3 scripts/approve.py --run-dir memory/runs/test-001 --run-id test-001
 python3 scripts/validate_run.py --run-dir memory/runs/test-001
 ```
 
-## Если doctor падает с error 15 или 27
+## Если doctor падает с error 27
 
-Токен не подходит для `groups.getRequests`. Напишите в issue — понадобится user token со scope `groups` (через поддержку VK). Подробности: `docs/vk-closed-group-join-requests.md`.
+Вы используете **ключ сообщества**. Замените `VK_ACCESS_TOKEN` на **user token** — см. `docs/how-to-get-vk-user-token.md`.
+
+## Если doctor падает с error 15
+
+У токена нет права `groups` или аккаунт не админ группы — см. `docs/how-to-get-vk-user-token.md`.
 
 ## Структура
 

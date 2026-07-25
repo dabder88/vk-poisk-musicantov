@@ -58,7 +58,7 @@ python3 scripts/validate_run.py --run-dir memory/runs/<id> -o memory/runs/<id>/q
 Required:
 
 - `VK_GROUP_ID` — числовой ID группы (без минуса)
-- `VK_ACCESS_TOKEN` — ключ из «Работа с API → Ключи доступа» с правом **Управление сообществом** (`manage`)
+- `VK_ACCESS_TOKEN` — **user token** администратора с правом `groups` (ключ сообщества не подходит, error 27)
 
 Optional:
 

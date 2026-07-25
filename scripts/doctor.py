@@ -84,10 +84,20 @@ def main() -> int:
                 print("OK VK API groups.getRequests reachable")
                 print(f"OK sample pending requests: {probe['pending_count_sample']}")
             else:
-                print(
-                    f"ERROR VK API probe failed: "
-                    f"code={probe.get('error_code')} msg={probe.get('error_message')}"
-                )
+                code = probe.get("error_code")
+                msg = probe.get("error_message")
+                print(f"ERROR VK API probe failed: code={code} msg={msg}")
+                if code == 27:
+                    print(
+                        "HINT error 27: VK_ACCESS_TOKEN is a community (group) token. "
+                        "groups.getRequests requires a USER token with groups scope. "
+                        "See docs/how-to-get-vk-user-token.md"
+                    )
+                elif code == 15:
+                    print(
+                        "HINT error 15: token lacks groups permission or user is not group admin. "
+                        "See docs/how-to-get-vk-user-token.md"
+                    )
                 errors += 1
         except Exception as exc:  # noqa: BLE001
             print(f"ERROR VK client: {exc}")
