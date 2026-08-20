@@ -228,8 +228,8 @@ def build_parser() -> argparse.ArgumentParser:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument(
         "--client-id",
-        default=os.environ.get("VK_APP_ID", "").strip(),
-        help="VK app client_id (env VK_APP_ID)",
+        default=os.environ.get("VK_APP_ID", "54693054").strip(),
+        help="VK app client_id (env VK_APP_ID, default 54693054)",
     )
     common.add_argument(
         "--redirect-uri",
