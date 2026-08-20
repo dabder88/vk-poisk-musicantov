@@ -16,7 +16,7 @@
 | Secret | Что это |
 |--------|---------|
 | `VK_GROUP_ID` | Числовой ID группы (без минуса). Например, для `vk.com/club123456` → `123456` |
-| `VK_ACCESS_TOKEN` | Ключ из группы: **Управление → Дополнительно → Работа с API → Ключи доступа → Создать ключ** с правом **«Управление сообществом»** |
+| `VK_ACCESS_TOKEN` | **User access token** с правом `groups` (через VK ID OAuth, не ключ сообщества) — см. [инструкцию](docs/how-to-get-vk-user-token.md) |
 
 Опционально (можно позже):
 
@@ -25,14 +25,21 @@
 | `APPROVE_ALLOW` | `no` → `yes` | После успешного dry-run |
 | `DRY_RUN` | `yes` → `no` | Вместе с `APPROVE_ALLOW=yes` для реального приёма |
 
-## Как получить токен (30 секунд)
+## Как получить токен
 
-1. Откройте вашу группу ВК (вы — администратор)
-2. **Управление → Дополнительно → Работа с API**
-3. Вкладка **Ключи доступа → Создать ключ**
-4. Отметьте **Управление сообществом** (manage)
-5. Подтвердите в приложении ВК
-6. Скопируйте ключ → вставьте в `VK_ACCESS_TOKEN` в Cursor Secrets
+Ключ сообщества из «Работа с API» **не подходит** (ошибка 27). Нужен **user token** с scope `groups` через VK ID OAuth 2.1.
+
+Кратко:
+
+```bash
+export VK_APP_ID=54693054
+export VK_SERVICE_TOKEN='сервисный_ключ_из_кабинета_приложения'
+python3 scripts/get_vk_token.py start
+# откройте ссылку, разрешите доступ, скопируйте redirect URL
+python3 scripts/get_vk_token.py exchange --redirect-url 'http://localhost?code=...'
+```
+
+Полная пошаговая инструкция: [`docs/how-to-get-vk-user-token.md`](docs/how-to-get-vk-user-token.md).
 
 ## Запуск
 
@@ -81,7 +88,7 @@ python3 scripts/validate_run.py --run-dir memory/runs/test-001
 
 ## Если doctor падает с error 15 или 27
 
-Токен не подходит для `groups.getRequests`. Напишите в issue — понадобится user token со scope `groups` (через поддержку VK). Подробности: `docs/vk-closed-group-join-requests.md`.
+Токен не подходит для `groups.getRequests`. Нужен user token со scope `groups` через VK ID: `docs/how-to-get-vk-user-token.md`. Контекст: `docs/vk-closed-group-join-requests.md`.
 
 ## Структура
 
