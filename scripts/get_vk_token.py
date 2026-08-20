@@ -22,9 +22,12 @@ import json
 import os
 import secrets
 import sys
+import threading
+import webbrowser
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 
 import requests
 
@@ -140,7 +143,11 @@ def cmd_start(args: argparse.Namespace) -> int:
     print("2) Allow access on the consent screen.")
     print("3) Browser will redirect to something like:")
     print(f"   {redirect_uri}?code=...&device_id=...&state=...")
-    print("   Copy the full URL from the address bar.")
+    print("   Firefox may show «cannot connect to localhost» — THIS IS NORMAL.")
+    print("   Copy the FULL URL from the address bar anyway.")
+    print()
+    print("   Easier: run on your PC:")
+    print("   python3 scripts/get_vk_token.py listen")
     print()
     print("4) Exchange code for token:")
     print(
@@ -152,14 +159,14 @@ def cmd_start(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_exchange(args: argparse.Namespace) -> int:
-    session = _load_session()
-    redirect = _parse_redirect_url(args.redirect_url)
-
+def _exchange_token(
+    session: dict[str, Any],
+    redirect: dict[str, str],
+    service_token: str,
+) -> dict[str, Any]:
     if redirect["state"] != session["state"]:
         raise SystemExit("state mismatch — use redirect URL from the same auth session")
 
-    service_token = args.service_token
     if not service_token:
         raise SystemExit("VK_SERVICE_TOKEN is required for confidential app exchange")
 
@@ -191,7 +198,10 @@ def cmd_exchange(args: argparse.Namespace) -> int:
             f"Token exchange failed ({response.status_code}): "
             f"{body.get('error', 'unknown')} — {body.get('error_description', body)}"
         )
+    return body
 
+
+def _print_token_result(body: dict[str, Any]) -> None:
     access_token = body["access_token"]
     refresh_token = body.get("refresh_token", "")
     expires_in = body.get("expires_in", "?")
@@ -218,6 +228,125 @@ def cmd_exchange(args: argparse.Namespace) -> int:
     print("  export VK_ACCESS_TOKEN='...'")
     print("  export VK_GROUP_ID='...'")
     print("  python3 scripts/doctor.py")
+
+
+def _redirect_parts(redirect_uri: str) -> tuple[str, int, str]:
+    parsed = urlparse(redirect_uri)
+    host = parsed.hostname or "localhost"
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    path = parsed.path or "/"
+    return host, port, path
+
+
+def cmd_listen(args: argparse.Namespace) -> int:
+    """Start local server, open browser, auto-catch redirect."""
+    client_id = args.client_id
+    redirect_uri = args.redirect_uri
+    scope = args.scope
+    service_token = args.service_token
+
+    code_verifier = _random_string(64)
+    state = _random_string(48)
+    session = {
+        "client_id": client_id,
+        "redirect_uri": redirect_uri,
+        "scope": scope,
+        "code_verifier": code_verifier,
+        "state": state,
+    }
+    _save_session(session)
+
+    host, port, expected_path = _redirect_parts(redirect_uri)
+    auth_url = _build_authorize_url(
+        client_id=client_id,
+        redirect_uri=redirect_uri,
+        scope=scope,
+        state=state,
+        code_challenge=_code_challenge(code_verifier),
+    )
+
+    result: dict[str, Any] = {"done": False}
+
+    class CallbackHandler(BaseHTTPRequestHandler):
+        def log_message(self, fmt: str, *log_args: Any) -> None:
+            return
+
+        def do_GET(self) -> None:  # noqa: N802
+            if self.path.split("?", 1)[0] != expected_path:
+                self.send_response(404)
+                self.end_headers()
+                self.wfile.write(b"Not found")
+                return
+
+            full_url = f"{redirect_uri.split('?', 1)[0]}{self.path}"
+            if "?" not in self.path:
+                self.send_response(400)
+                self.end_headers()
+                self.wfile.write(b"Missing query parameters")
+                return
+
+            try:
+                redirect = _parse_redirect_url(full_url)
+                body = _exchange_token(session, redirect, service_token)
+                result["done"] = True
+                result["body"] = body
+                html = (
+                    "<html><body style='font-family:sans-serif;padding:2em'>"
+                    "<h2>Готово</h2><p>Токен получен. Можно закрыть вкладку "
+                    "и вернуться в терминал.</p></body></html>"
+                ).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(html)))
+                self.end_headers()
+                self.wfile.write(html)
+            except SystemExit as exc:
+                msg = str(exc).encode("utf-8")
+                self.send_response(500)
+                self.end_headers()
+                self.wfile.write(msg)
+                result["error"] = str(exc)
+            finally:
+                threading.Thread(target=server.shutdown, daemon=True).start()
+
+    print("Запускаю локальный сервер для перехвата redirect...")
+    print(f"Слушаю {host}:{port}{expected_path}")
+    if port == 80:
+        print("Нужны права на порт 80. Если ошибка — запустите с sudo или см. docs/ЧТО-ДЕЛАТЬ.md")
+    print()
+    print("Откроется браузер. Нажмите «Разрешить».")
+    print("Страница localhost откроется нормально — код подхватится автоматически.")
+    print()
+
+    server = HTTPServer((host, port), CallbackHandler)
+    threading.Timer(1.0, lambda: webbrowser.open(auth_url)).start()
+
+    try:
+        server.serve_forever()
+    except OSError as exc:
+        print(f"Не удалось запустить сервер на {host}:{port}: {exc}")
+        print()
+        print("Альтернатива: откройте ссылку вручную и скопируйте URL из адресной строки")
+        print("(ошибка Firefox «не может подключиться» — это нормально, URL всё равно там):")
+        print(auth_url)
+        return 1
+
+    if result.get("done"):
+        print()
+        _print_token_result(result["body"])
+        return 0
+
+    if result.get("error"):
+        print(f"ERROR {result['error']}")
+        return 1
+    return 1
+
+
+def cmd_exchange(args: argparse.Namespace) -> int:
+    session = _load_session()
+    redirect = _parse_redirect_url(args.redirect_url)
+    body = _exchange_token(session, redirect, args.service_token)
+    _print_token_result(body)
     return 0
 
 
@@ -257,6 +386,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="service token for confidential app (env VK_SERVICE_TOKEN)",
     )
     exchange.set_defaults(func=cmd_exchange)
+
+    listen = sub.add_parser(
+        "listen",
+        parents=[common],
+        help="local server catches redirect (run on your PC)",
+    )
+    listen.add_argument(
+        "--service-token",
+        default=os.environ.get("VK_SERVICE_TOKEN", "").strip(),
+        help="service token for confidential app (env VK_SERVICE_TOKEN)",
+    )
+    listen.set_defaults(func=cmd_listen)
 
     return parser
 
