@@ -33,6 +33,7 @@ import requests
 
 ROOT = Path(__file__).resolve().parents[1]
 SESSION_PATH = ROOT / "tmp" / "vk_oauth_session.json"
+SESSIONS_PATH = ROOT / "tmp" / "vk_oauth_sessions.json"
 AUTH_URL = "https://id.vk.ru/authorize"
 TOKEN_URL = "https://id.vk.ru/oauth2/auth"
 
@@ -54,14 +55,30 @@ def _code_challenge(verifier: str) -> str:
 def _save_session(data: dict[str, Any]) -> None:
     SESSION_PATH.parent.mkdir(parents=True, exist_ok=True)
     SESSION_PATH.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    history: dict[str, Any] = {}
+    if SESSIONS_PATH.exists():
+        history = json.loads(SESSIONS_PATH.read_text(encoding="utf-8"))
+    history[data["state"]] = data
+    SESSIONS_PATH.write_text(json.dumps(history, indent=2), encoding="utf-8")
 
 
-def _load_session() -> dict[str, Any]:
+def _load_session(state: str | None = None) -> dict[str, Any]:
+    if state and SESSIONS_PATH.exists():
+        history = json.loads(SESSIONS_PATH.read_text(encoding="utf-8"))
+        if state in history:
+            return history[state]
+
     if not SESSION_PATH.exists():
         raise SystemExit(
             f"Session file not found: {SESSION_PATH}\nRun: python3 scripts/get_vk_token.py start"
         )
-    return json.loads(SESSION_PATH.read_text(encoding="utf-8"))
+    session = json.loads(SESSION_PATH.read_text(encoding="utf-8"))
+    if state and session.get("state") != state:
+        raise SystemExit(
+            f"state mismatch — no saved session for state={state}\n"
+            "Open a fresh authorize link from: python3 scripts/get_vk_token.py start"
+        )
+    return session
 
 
 def _build_authorize_url(
@@ -343,8 +360,8 @@ def cmd_listen(args: argparse.Namespace) -> int:
 
 
 def cmd_exchange(args: argparse.Namespace) -> int:
-    session = _load_session()
     redirect = _parse_redirect_url(args.redirect_url)
+    session = _load_session(state=redirect["state"])
     body = _exchange_token(session, redirect, args.service_token)
     _print_token_result(body)
     return 0
