@@ -29,13 +29,20 @@ Pipeline делает это в `VkClient.from_env()` через `scripts/vk_oau
 |--------|------------|---------|
 | `VK_GROUP_ID` | одна группа | ID группы без минуса |
 | `VK_GROUP_IDS` | несколько пабликов | `111,222,333` (можно вместе с `VK_GROUP_ID`) |
-| `VK_REFRESH_TOKEN` | да (для облака) | `refresh_token` из ответа `id.vk.ru/oauth2/auth` |
+| `VK_REFRESH_TOKEN` | да (для облака) | **refresh_token** (`vk2.r.…`), не access_token |
 | `VK_DEVICE_ID` | да вместе с refresh | `device_id` из редиректа `http://localhost/?code=...&device_id=...` |
 | `VK_SERVICE_TOKEN` | да для конфиденциального приложения | сервисный ключ из настроек VK ID |
 | `VK_CLIENT_ID` | нет | по умолчанию `54693054` |
 | `VK_ACCESS_TOKEN` | нет, если есть refresh | запасной access_token; на облаке всё равно будет refresh |
 
 Не кладите **защищённый ключ** — pipeline его не использует.
+
+**`access_token` ≠ `refresh_token`.** VK ID выдаёт оба в одном ответе обмена:
+
+- `access_token` начинается с `vk2.a.` — привязан к IP, живёт ~час, **нельзя** класть в `VK_REFRESH_TOKEN`.
+- `refresh_token` обычно начинается с `vk2.r.` — его кладут в секрет `VK_REFRESH_TOKEN`. Cloud Agent на своей VM обменивает его на новый `access_token`.
+
+Если в `VK_REFRESH_TOKEN` лежит значение с prefix `vk2.a.`, `doctor.py` завершится FAIL без запроса в сеть (`invalid_grant` неизбежен).
 
 ---
 
