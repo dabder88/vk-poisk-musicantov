@@ -15,12 +15,15 @@
 
 | Secret | Что это |
 |--------|---------|
-| `VK_GROUP_ID` | Числовой ID группы (без минуса) |
+| `VK_GROUP_ID` | Одна группа (без минуса). Можно не задавать, если есть `VK_GROUP_IDS` |
+| `VK_GROUP_IDS` | Несколько пабликов: `111,222,333` |
 | `VK_REFRESH_TOKEN` | `refresh_token` из VK ID OAuth (для Cloud Agent) |
 | `VK_DEVICE_ID` | `device_id` из редиректа VK ID |
 | `VK_SERVICE_TOKEN` | сервисный ключ приложения (конфиденциальное приложение) |
 
 Опционально: `VK_CLIENT_ID` (по умолчанию `54693054`), `VK_ACCESS_TOKEN` (на облаке всё равно будет refresh).
+
+Несколько пабликов: в `VK_GROUP_IDS` перечислите ID через запятую. Один OAuth (`VK_REFRESH_TOKEN` + `VK_DEVICE_ID`) на все группы, где вы админ.
 
 > Не используйте ключ сообщества. Не вызывайте API облаком с access_token, полученным в браузере — будет error 5 (IP). Нужен refresh на VM.
 > Инструкция: `docs/how-to-get-vk-user-token.md`

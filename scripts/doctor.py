@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from scripts.group_ids import parse_group_ids  # noqa: E402
 from scripts.vk_client import VkClient  # noqa: E402
 
 
@@ -24,11 +25,9 @@ REQUIRED_DIRS = [
     "memory/runs",
 ]
 
-REQUIRED_ENV = [
-    "VK_GROUP_ID",
-]
-
 OPTIONAL_ENV = [
+    "VK_GROUP_ID",
+    "VK_GROUP_IDS",
     "VK_ACCESS_TOKEN",
     "VK_REFRESH_TOKEN",
     "VK_DEVICE_ID",
@@ -38,13 +37,6 @@ OPTIONAL_ENV = [
     "APPROVE_ALLOW",
     "DRY_RUN",
 ]
-
-
-def check_env(name: str) -> tuple[bool, str]:
-    value = os.environ.get(name, "").strip()
-    if not value:
-        return False, f"MISSING env {name}"
-    return True, f"OK env {name} configured"
 
 
 def main() -> int:
@@ -59,12 +51,6 @@ def main() -> int:
             print(f"ERROR missing path {rel}")
             errors += 1
 
-    for name in REQUIRED_ENV:
-        ok, msg = check_env(name)
-        print(msg)
-        if not ok:
-            errors += 1
-
     for name in OPTIONAL_ENV:
         value = os.environ.get(name, "").strip()
         if value:
@@ -72,6 +58,14 @@ def main() -> int:
         else:
             print(f"WARN env {name} not set (using default)")
             warnings += 1
+
+    try:
+        group_ids = parse_group_ids()
+        print(f"OK group_ids={','.join(str(x) for x in group_ids)}")
+    except ValueError as exc:
+        print(f"ERROR {exc}")
+        errors += 1
+        group_ids = []
 
     has_access = bool(os.environ.get("VK_ACCESS_TOKEN", "").strip())
     has_refresh = bool(os.environ.get("VK_REFRESH_TOKEN", "").strip())
@@ -98,15 +92,18 @@ def main() -> int:
 
     if errors == 0:
         try:
-            client = VkClient.from_env()
-            probe = client.probe_token()
-            if probe["ok"]:
-                print("OK VK API groups.getRequests reachable")
-                print(f"OK sample pending requests: {probe['pending_count_sample']}")
-            else:
+            client = VkClient.from_env(group_id=group_ids[0])
+            for gid in group_ids:
+                probe = client.with_group(gid).probe_token()
+                if probe["ok"]:
+                    print(
+                        f"OK VK API groups.getRequests reachable group_id={gid} "
+                        f"sample={probe['pending_count_sample']}"
+                    )
+                    continue
                 code = probe.get("error_code")
                 msg = probe.get("error_message")
-                print(f"ERROR VK API probe failed: code={code} msg={msg}")
+                print(f"ERROR VK API probe failed group_id={gid}: code={code} msg={msg}")
                 if code == 27:
                     print(
                         "HINT error 27: VK_ACCESS_TOKEN is a community (group) token. "

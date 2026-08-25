@@ -9,7 +9,7 @@ description: Director skill for VK join-request automation pipeline.
 
 - `AGENTS.md`
 - `docs/vk-closed-group-join-requests.md`
-- env: VK_GROUP_ID, VK_REFRESH_TOKEN, VK_DEVICE_ID, VK_SERVICE_TOKEN, APPROVE_ALLOW, DRY_RUN
+- env: VK_GROUP_ID, VK_GROUP_IDS, VK_REFRESH_TOKEN, VK_DEVICE_ID, VK_SERVICE_TOKEN, APPROVE_ALLOW, DRY_RUN
 
 ## Steps
 

@@ -27,7 +27,8 @@ Pipeline делает это в `VkClient.from_env()` через `scripts/vk_oau
 
 | Secret | Обязателен | Что это |
 |--------|------------|---------|
-| `VK_GROUP_ID` | да | ID группы без минуса |
+| `VK_GROUP_ID` | одна группа | ID группы без минуса |
+| `VK_GROUP_IDS` | несколько пабликов | `111,222,333` (можно вместе с `VK_GROUP_ID`) |
 | `VK_REFRESH_TOKEN` | да (для облака) | `refresh_token` из ответа `id.vk.ru/oauth2/auth` |
 | `VK_DEVICE_ID` | да вместе с refresh | `device_id` из редиректа `http://localhost/?code=...&device_id=...` |
 | `VK_SERVICE_TOKEN` | да для конфиденциального приложения | сервисный ключ из настроек VK ID |

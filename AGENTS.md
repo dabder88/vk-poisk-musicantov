@@ -57,7 +57,8 @@ python3 scripts/validate_run.py --run-dir memory/runs/<id> -o memory/runs/<id>/q
 
 Required:
 
-- `VK_GROUP_ID` — числовой ID группы (без минуса)
+- `VK_GROUP_ID` — одна группа (без минуса)
+- `VK_GROUP_IDS` — несколько групп через запятую, например `111,222,333` (можно вместе с `VK_GROUP_ID`)
 - `VK_REFRESH_TOKEN` — refresh_token VK ID (обмен на Cloud Agent, иначе error 5 / IP)
 - `VK_DEVICE_ID` — device_id из VK ID redirect
 - `VK_SERVICE_TOKEN` — сервисный ключ приложения (конфиденциальное приложение)
