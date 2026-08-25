@@ -31,15 +31,35 @@ class VkClient:
         self.api_version = api_version
 
     @classmethod
-    def from_env(cls) -> "VkClient":
+    def from_env(cls, *, refresh: bool = True) -> "VkClient":
         token = os.environ.get("VK_ACCESS_TOKEN", "").strip()
         group_raw = os.environ.get("VK_GROUP_ID", "").strip()
         version = os.environ.get("VK_API_VERSION", DEFAULT_API_VERSION).strip()
 
-        if not token:
-            raise ValueError("VK_ACCESS_TOKEN is not set")
         if not group_raw:
             raise ValueError("VK_GROUP_ID is not set")
+
+        if refresh and os.environ.get("VK_REFRESH_TOKEN", "").strip():
+            from scripts.vk_oauth import public_token_meta, refresh_from_env
+
+            tokens = refresh_from_env()
+            token = str(tokens["access_token"]).strip()
+            meta = public_token_meta(tokens)
+            print(
+                "OK VK ID refresh_token exchanged on this host "
+                f"user_id={meta.get('user_id')} scope={meta.get('scope')}"
+            )
+            if tokens.get("refresh_token"):
+                print(
+                    "WARN if VK rotated refresh_token, update Cursor Secret "
+                    "VK_REFRESH_TOKEN before the next run"
+                )
+
+        if not token:
+            raise ValueError(
+                "VK_ACCESS_TOKEN is not set "
+                "(set VK_REFRESH_TOKEN+VK_DEVICE_ID to refresh on this host)"
+            )
 
         return cls(
             access_token=token,
