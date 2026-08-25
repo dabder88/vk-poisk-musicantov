@@ -81,3 +81,39 @@ category: env
 
 ### Fixer resolution
 - needs-human: new `VK_REFRESH_TOKEN` in Dashboard. Code-side cache is `fixed` in INC-20260825-1526.
+
+## INC-20260825-1552-fetch-error-5-ip
+status: open
+run_date: 2026-08-25
+role: vk-fetch
+run_id: R20260825-1552
+severity: blocker
+category: api
+
+### What went wrong
+- Doctor was already PASS. vk-fetch reused gitignored `memory/site.env.local` (`from_cache`, no `refresh force`, doctor not run).
+- `python3 scripts/fetch_requests.py --run-dir memory/runs/R20260825-1552` with `APPROVE_ALLOW=no` `DRY_RUN=yes`.
+- First attempt: group `37759698` getRequests OK (`pending=70`); group `12830069` then VK error 5 (`access_token was given to another ip address`). Script aborted; `requests.json` not written.
+- Immediate retry (same cache, no force): error 5 on the first group. Client already retries getRequests 3 times on 5/1130 with the same token.
+- Groups `37636297` not reached. No force refresh per fetch instructions.
+
+### How the agent recovered this run
+- Did not call `refresh_from_env(force=True)`, doctor, `run_pipeline.sh`, decide, or approve.
+- Did not print or commit token cache contents.
+- Handoff marked FAIL; incident recorded.
+
+### Durable fix needed before next run
+- Sticky egress IP for the VM so a host-cached access_token stays valid for all 3 `groups.getRequests` calls.
+- Optional: write partial `requests.json` / continue other groups after error 5 instead of aborting the whole fetch.
+- Do not force-refresh on error 5 if cache exists (burns `VK_REFRESH_TOKEN`).
+
+### Suggested files to inspect/change
+- `scripts/fetch_requests.py`
+- `scripts/vk_client.py`
+- Cloud Agent egress / environment network
+
+### Secrets
+- none recorded
+
+### Fixer resolution
+- pending
