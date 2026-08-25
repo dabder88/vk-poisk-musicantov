@@ -13,10 +13,11 @@ description: Director skill for VK join-request automation pipeline.
 
 ## Steps
 
-1. doctor.py PASS
+1. doctor.py PASS (one refresh per VM; tokens in gitignored `memory/site.env.local`)
 2. start_run with unique run_id
-3. Launch vk-fetch → vk-decide → vk-approve → vk-qa in order
+3. Launch vk-fetch → vk-decide → vk-approve → vk-qa in order (reuse cache, no second refresh)
 4. fixer if open incidents
+5. Do not loop doctor on `invalid_grant`; Dashboard `VK_REFRESH_TOKEN` needs a human update
 
 ## Output contract
 

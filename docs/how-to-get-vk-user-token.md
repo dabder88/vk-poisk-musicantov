@@ -85,7 +85,7 @@ python3 scripts/get_vk_token.py finish --redirect-url 'ВСТАВЬТЕ_URL'
 
 ## Шаг 2. Cloud Agent
 
-На каждый run `doctor.py` / `fetch` / live `approve` вызывает:
+На **первом** процессе в VM (`doctor.py`) pipeline один раз вызывает:
 
 ```text
 POST https://id.vk.ru/oauth2/auth
@@ -93,9 +93,13 @@ grant_type=refresh_token
 refresh_token + device_id + client_id [+ service_token]
 ```
 
-Новый `access_token` привязан к IP Cloud Agent → затем `groups.getRequests`.
+Новый `access_token` привязан к IP этой VM. Токены пишутся в gitignored `memory/site.env.local` (chmod 0600): `VK_ACCESS_TOKEN`, `VK_REFRESH_TOKEN`, срок/`user_id`/`scope`. Файл не коммитить и не печатать.
 
-Если VK **ротирует** `refresh_token`, обновите секрет `VK_REFRESH_TOKEN` в Dashboard до следующего запуска.
+`fetch` / повторный `doctor` / `approve` на той же VM **не** делают второй exchange: берут cached `access_token`.
+
+Если VK **ротирует** `refresh_token`, новое значение есть только в `memory/site.env.local`. Человек должен скопировать его в Cursor Secret `VK_REFRESH_TOKEN` **с этой VM** до следующего Cloud Agent (новая машина не видит gitignored cache).
+
+При API error 5 / 1130 `groups.getRequests` повторяется 2–3 раза тем же токеном. Второй refresh — только если кэш пуст или retry не помог (не в цикле).
 
 ---
 
@@ -112,7 +116,7 @@ refresh_token + device_id + client_id [+ service_token]
 
 | Код | Смысл | Действие |
 |-----|--------|----------|
-| 5 / 1130 | другой IP | `VK_REFRESH_TOKEN` + `VK_DEVICE_ID` на Cloud Agent |
+| 5 / 1130 | другой IP | один refresh на VM + кэш `memory/site.env.local`; retry getRequests тем же токеном |
 | 10 | VK не может проверить токен | нет `groups` в scope при OAuth |
 | 15 | нет прав / не админ | scope `groups`, админ группы |
 | 27 | community token | нужен user token / refresh VK ID |

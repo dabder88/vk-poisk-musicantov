@@ -98,7 +98,7 @@ def cmd_finish(args: argparse.Namespace) -> int:
 
 
 def cmd_refresh(_args: argparse.Namespace) -> int:
-    tokens = refresh_from_env()
+    tokens = refresh_from_env(force=True)
     print("OK refresh_token exchanged on this host")
     print(json.dumps(public_token_meta(tokens), ensure_ascii=False, indent=2))
     return 0

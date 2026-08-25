@@ -78,7 +78,10 @@ def main() -> int:
         print("ERROR VK_DEVICE_ID is required together with VK_REFRESH_TOKEN")
         errors += 1
     elif has_refresh:
-        print("OK will refresh access_token on this host via VK ID refresh_token")
+        print(
+            "OK will refresh access_token at most once on this host; "
+            "later processes reuse gitignored memory/site.env.local"
+        )
     else:
         print("WARN VK_REFRESH_TOKEN not set; Cloud Agent may hit error 5 (IP bind)")
         warnings += 1
@@ -92,38 +95,62 @@ def main() -> int:
 
     if errors == 0:
         try:
+            from scripts.vk_client import IP_RETRY_CODES
+            from scripts.vk_oauth import refresh_from_env
+
             client = VkClient.from_env(group_id=group_ids[0])
-            for gid in group_ids:
-                probe = client.with_group(gid).probe_token()
-                if probe["ok"]:
+            extra_refresh_done = False
+            remaining = list(group_ids)
+            while remaining:
+                still_ip: list[int] = []
+                for gid in remaining:
+                    probe = client.with_group(gid).probe_token()
+                    if probe["ok"]:
+                        print(
+                            f"OK VK API groups.getRequests reachable group_id={gid} "
+                            f"sample={probe['pending_count_sample']}"
+                        )
+                        continue
+                    code = probe.get("error_code")
+                    msg = probe.get("error_message")
                     print(
-                        f"OK VK API groups.getRequests reachable group_id={gid} "
-                        f"sample={probe['pending_count_sample']}"
+                        f"ERROR VK API probe failed group_id={gid}: code={code} msg={msg}"
                     )
+                    if code == 27:
+                        print(
+                            "HINT error 27: VK_ACCESS_TOKEN is a community (group) token. "
+                            "groups.getRequests requires a USER token with groups scope. "
+                            "See docs/how-to-get-vk-user-token.md"
+                        )
+                    elif code == 15:
+                        print(
+                            "HINT error 15: token lacks groups permission or user is not "
+                            "group admin. See docs/how-to-get-vk-user-token.md"
+                        )
+                    elif code in IP_RETRY_CODES:
+                        print(
+                            "HINT error 5/1130 (IP): retried getRequests with the same "
+                            "host-bound token. Second refresh only if cache empty or "
+                            "retries still fail."
+                        )
+                        still_ip.append(gid)
+                    errors += 1
+
+                if still_ip and not extra_refresh_done:
+                    print(
+                        "WARN getRequests still error 5 after retries; "
+                        "one extra refresh then re-probe (not a loop)"
+                    )
+                    extra_refresh_done = True
+                    tokens = refresh_from_env(force=True)
+                    client = client.with_group(group_ids[0])
+                    client.access_token = str(tokens["access_token"]).strip()
+                    errors -= len(still_ip)
+                    remaining = still_ip
                     continue
-                code = probe.get("error_code")
-                msg = probe.get("error_message")
-                print(f"ERROR VK API probe failed group_id={gid}: code={code} msg={msg}")
-                if code == 27:
-                    print(
-                        "HINT error 27: VK_ACCESS_TOKEN is a community (group) token. "
-                        "groups.getRequests requires a USER token with groups scope. "
-                        "See docs/how-to-get-vk-user-token.md"
-                    )
-                elif code == 15:
-                    print(
-                        "HINT error 15: token lacks groups permission or user is not group admin. "
-                        "See docs/how-to-get-vk-user-token.md"
-                    )
-                elif code == 5:
-                    print(
-                        "HINT error 5 (IP): refresh access_token on THIS host with "
-                        "VK_REFRESH_TOKEN + VK_DEVICE_ID (VK ID grant_type=refresh_token). "
-                        "See docs/how-to-get-vk-user-token.md"
-                    )
-                errors += 1
-        except Exception as exc:  # noqa: BLE001
-            print(f"ERROR VK client: {exc}")
+                break
+        except Exception as extra:  # noqa: BLE001
+            print(f"ERROR VK client: {extra}")
             errors += 1
 
     if errors and not (
