@@ -58,10 +58,14 @@ python3 scripts/validate_run.py --run-dir memory/runs/<id> -o memory/runs/<id>/q
 Required:
 
 - `VK_GROUP_ID` — числовой ID группы (без минуса)
-- `VK_ACCESS_TOKEN` — **user token** администратора с правом `groups` (ключ сообщества не подходит, error 27)
+- `VK_REFRESH_TOKEN` — refresh_token VK ID (обмен на Cloud Agent, иначе error 5 / IP)
+- `VK_DEVICE_ID` — device_id из VK ID redirect
+- `VK_SERVICE_TOKEN` — сервисный ключ приложения (конфиденциальное приложение)
 
 Optional:
 
+- `VK_ACCESS_TOKEN` — запасной user token; на облаке предпочитается refresh
+- `VK_CLIENT_ID` — по умолчанию `54693054`
 - `VK_API_VERSION` — по умолчанию `5.199`
 - `APPROVE_ALLOW` — `no` (по умолчанию) или `yes` для реального одобрения
 - `DRY_RUN` — `yes` (по умолчанию) или `no` вместе с `APPROVE_ALLOW=yes`

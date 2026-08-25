@@ -26,10 +26,14 @@ REQUIRED_DIRS = [
 
 REQUIRED_ENV = [
     "VK_GROUP_ID",
-    "VK_ACCESS_TOKEN",
 ]
 
 OPTIONAL_ENV = [
+    "VK_ACCESS_TOKEN",
+    "VK_REFRESH_TOKEN",
+    "VK_DEVICE_ID",
+    "VK_CLIENT_ID",
+    "VK_SERVICE_TOKEN",
     "VK_API_VERSION",
     "APPROVE_ALLOW",
     "DRY_RUN",
@@ -69,6 +73,22 @@ def main() -> int:
             print(f"WARN env {name} not set (using default)")
             warnings += 1
 
+    has_access = bool(os.environ.get("VK_ACCESS_TOKEN", "").strip())
+    has_refresh = bool(os.environ.get("VK_REFRESH_TOKEN", "").strip())
+    has_device = bool(os.environ.get("VK_DEVICE_ID", "").strip())
+
+    if not has_access and not has_refresh:
+        print("ERROR set VK_ACCESS_TOKEN or VK_REFRESH_TOKEN")
+        errors += 1
+    elif has_refresh and not has_device:
+        print("ERROR VK_DEVICE_ID is required together with VK_REFRESH_TOKEN")
+        errors += 1
+    elif has_refresh:
+        print("OK will refresh access_token on this host via VK ID refresh_token")
+    else:
+        print("WARN VK_REFRESH_TOKEN not set; Cloud Agent may hit error 5 (IP bind)")
+        warnings += 1
+
     approve_allow = os.environ.get("APPROVE_ALLOW", "no").strip().lower()
     if approve_allow not in ("yes", "no"):
         print("ERROR APPROVE_ALLOW must be yes or no")
@@ -98,12 +118,21 @@ def main() -> int:
                         "HINT error 15: token lacks groups permission or user is not group admin. "
                         "See docs/how-to-get-vk-user-token.md"
                     )
+                elif code == 5:
+                    print(
+                        "HINT error 5 (IP): refresh access_token on THIS host with "
+                        "VK_REFRESH_TOKEN + VK_DEVICE_ID (VK ID grant_type=refresh_token). "
+                        "See docs/how-to-get-vk-user-token.md"
+                    )
                 errors += 1
         except Exception as exc:  # noqa: BLE001
             print(f"ERROR VK client: {exc}")
             errors += 1
 
-    if errors and not os.environ.get("VK_ACCESS_TOKEN", "").strip():
+    if errors and not (
+        os.environ.get("VK_ACCESS_TOKEN", "").strip()
+        or os.environ.get("VK_REFRESH_TOKEN", "").strip()
+    ):
         print(
             "HINT secrets not visible in this VM session. "
             "Restart Cloud Agent after adding Cursor Runtime Secrets, "
