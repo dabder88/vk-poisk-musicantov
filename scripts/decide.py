@@ -25,6 +25,23 @@ def load_policy_mode() -> str:
     return "approve_all"
 
 
+def groups_from_requests(data: dict) -> list[dict]:
+    raw_groups = data.get("groups")
+    if isinstance(raw_groups, list) and raw_groups:
+        result = []
+        for item in raw_groups:
+            gid = int(item["group_id"])
+            user_ids = [int(x) for x in item.get("user_ids", [])]
+            result.append({"group_id": gid, "user_ids": user_ids})
+        return result
+
+    gid = int(data.get("group_id") or 0)
+    user_ids = [int(x) for x in data.get("user_ids", [])]
+    if not gid:
+        raise ValueError("requests.json has no group_id/groups")
+    return [{"group_id": gid, "user_ids": user_ids}]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--run-dir", required=True)
@@ -40,27 +57,48 @@ def main() -> int:
         return 1
 
     data = json.loads(requests_path.read_text(encoding="utf-8"))
-    user_ids = [int(x) for x in data.get("user_ids", [])]
+    groups = groups_from_requests(data)
     mode = load_policy_mode()
 
-    approved: list[int] = []
-    skipped: list[dict] = []
-
-    if mode == "approve_all":
-        approved = user_ids
-    elif mode == "manual_only":
-        skipped = [{"user_id": uid, "reason": "manual_only policy"} for uid in user_ids]
-    else:
+    if mode not in ("approve_all", "manual_only"):
         print(f"ERROR unknown policy mode: {mode}")
         return 1
 
+    to_approve: list[dict] = []
+    skipped: list[dict] = []
+    per_group: list[dict] = []
+
+    for group in groups:
+        gid = group["group_id"]
+        user_ids = group["user_ids"]
+        approved_ids: list[int] = []
+        skipped_here: list[dict] = []
+        if mode == "approve_all":
+            approved_ids = user_ids
+            to_approve.extend({"group_id": gid, "user_id": uid} for uid in approved_ids)
+        else:
+            skipped_here = [
+                {"group_id": gid, "user_id": uid, "reason": "manual_only policy"}
+                for uid in user_ids
+            ]
+            skipped.extend(skipped_here)
+        per_group.append(
+            {
+                "group_id": gid,
+                "to_approve": approved_ids,
+                "skipped": skipped_here,
+            }
+        )
+
     decision = {
         "policy_mode": mode,
-        "to_approve": approved,
+        "groups": per_group,
+        "to_approve": to_approve,
         "skipped": skipped,
         "summary": {
-            "total": len(user_ids),
-            "approve": len(approved),
+            "groups": len(groups),
+            "total": sum(len(g["user_ids"]) for g in groups),
+            "approve": len(to_approve),
             "skip": len(skipped),
         },
     }
@@ -69,7 +107,8 @@ def main() -> int:
     out_path.write_text(json.dumps(decision, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     print(
-        f"OK decision: approve={len(approved)} skip={len(skipped)} mode={mode} -> {out_path}"
+        f"OK decision: groups={len(groups)} approve={len(to_approve)} "
+        f"skip={len(skipped)} mode={mode} -> {out_path}"
     )
     return 0
 

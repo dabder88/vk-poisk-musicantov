@@ -5,10 +5,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from scripts.group_ids import parse_group_ids  # noqa: E402
+
 RUNS_DIR = ROOT / "memory" / "runs"
 
 
@@ -20,11 +25,17 @@ def main() -> int:
     run_dir = RUNS_DIR / args.run_id
     run_dir.mkdir(parents=True, exist_ok=True)
 
+    try:
+        group_ids = parse_group_ids()
+    except ValueError:
+        group_ids = []
+
     context = {
         "run_id": args.run_id,
         "run_dir": str(run_dir.relative_to(ROOT)),
         "started_at": datetime.now(timezone.utc).isoformat(),
         "status": "started",
+        "group_ids": group_ids,
     }
 
     context_path = run_dir / "context.json"

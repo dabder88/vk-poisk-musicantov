@@ -13,4 +13,4 @@ description: Fetch VK group join requests.
 
 ## Output
 
-`requests.json` with `user_ids` array.
+`requests.json` with `groups[]` (`group_id`, `user_ids`) and total `count`.
