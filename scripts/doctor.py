@@ -38,6 +38,21 @@ OPTIONAL_ENV = [
     "DRY_RUN",
 ]
 
+# VK ID access_token prefix. Refresh tokens are typically vk2.r.
+VK_ACCESS_TOKEN_PREFIX = "vk2.a."
+
+HINT_REFRESH_TOKEN_IS_ACCESS = (
+    "HINT VK_REFRESH_TOKEN is an access_token (prefix vk2.a.), not a refresh_token. "
+    "Need a VK ID refresh_token (usually vk2.r.…). "
+    "How to get: python3 scripts/get_vk_token.py start then finish --redirect-url ... "
+    "Replace VK_REFRESH_TOKEN in Cursor Secrets; do not put vk2.a. into refresh."
+)
+
+
+def looks_like_vk_access_token(token: str) -> bool:
+    """True if value looks like a VK ID access_token (vk2.a.), not refresh (vk2.r.)."""
+    return token.strip().startswith(VK_ACCESS_TOKEN_PREFIX)
+
 
 def main() -> int:
     errors = 0
@@ -68,11 +83,19 @@ def main() -> int:
         group_ids = []
 
     has_access = bool(os.environ.get("VK_ACCESS_TOKEN", "").strip())
-    has_refresh = bool(os.environ.get("VK_REFRESH_TOKEN", "").strip())
+    refresh_token = os.environ.get("VK_REFRESH_TOKEN", "").strip()
+    has_refresh = bool(refresh_token)
     has_device = bool(os.environ.get("VK_DEVICE_ID", "").strip())
 
     if not has_access and not has_refresh:
         print("ERROR set VK_ACCESS_TOKEN or VK_REFRESH_TOKEN")
+        errors += 1
+    elif has_refresh and looks_like_vk_access_token(refresh_token):
+        print(
+            "ERROR VK_REFRESH_TOKEN starts with vk2.a. — this is an access_token, "
+            "not a refresh_token"
+        )
+        print(HINT_REFRESH_TOKEN_IS_ACCESS)
         errors += 1
     elif has_refresh and not has_device:
         print("ERROR VK_DEVICE_ID is required together with VK_REFRESH_TOKEN")
