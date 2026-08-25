@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from scripts.vk_client import VkApiError, VkClient  # noqa: E402
+from scripts.vk_ip_refresh import OneExtraRefresh, call_recovering_ip  # noqa: E402
 
 
 def approval_targets(decision: dict) -> list[dict]:
@@ -109,6 +110,7 @@ def main() -> int:
 
     base = VkClient.from_env()
     errors = 0
+    extra = OneExtraRefresh()
 
     for target in targets:
         entry = {
@@ -118,7 +120,11 @@ def main() -> int:
             "run_id": args.run_id,
         }
         try:
-            ok = base.with_group(target["group_id"]).approve_request(target["user_id"])
+            ok = call_recovering_ip(
+                base,
+                extra,
+                lambda t=target: base.with_group(t["group_id"]).approve_request(t["user_id"]),
+            )
             entry["status"] = "approved" if ok else "failed"
         except VkApiError as exc:
             entry["status"] = "error"

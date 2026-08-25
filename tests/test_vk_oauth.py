@@ -193,6 +193,7 @@ class VkClientFromEnvTests(unittest.TestCase):
         }
         env = {
             "VK_GROUP_ID": "12345",
+            "VK_GROUP_IDS": "",
             "VK_ACCESS_TOKEN": "stale-ip-token",
             "VK_REFRESH_TOKEN": "refresh",
             "VK_DEVICE_ID": "dev",

@@ -54,7 +54,7 @@ category: api
 - This VM doctor after the fix: **FAIL** `invalid_grant` (`refresh_token is missing or invalid`), one attempt, no refresh loop. Dashboard token remains burned — see INC-20260825-1545-dashboard-refresh-invalid.
 
 ## INC-20260825-1545-dashboard-refresh-invalid
-status: needs-human
+status: fixed
 run_date: 2026-08-25
 role: vk-fixer
 run_id: none
@@ -67,10 +67,11 @@ category: env
 
 ### How the agent recovered this run
 - Durable cache/retry patch landed; did not loop refresh; did not start fetch/decide/approve; `APPROVE_ALLOW` left at `no`.
+- Later this VM: doctor PASS (refresh OK, `user_id=4253689`, `scope=groups`). Secret was rotated/updated; host cache reused by fetch.
 
 ### Durable fix needed before next run
-- Human: on a PC run `python3 scripts/get_vk_token.py start` / `finish`, put new `VK_REFRESH_TOKEN` + `VK_DEVICE_ID` (+ `VK_SERVICE_TOKEN`) into Cursor Dashboard secrets.
-- Next Cloud Agent: first doctor refresh once, write `memory/site.env.local`, copy rotated refresh from that file into Dashboard **before the next VM** if VK rotated it.
+- Human: copy rotated `VK_REFRESH_TOKEN` from gitignored `memory/site.env.local` into Cursor Dashboard **before the next Cloud Agent VM**. Do not print or commit the file.
+- Do not re-run `doctor.py` / `refresh force` on this VM just to “refresh secrets”; extra exchange can `invalid_grant`.
 
 ### Suggested files to inspect/change
 - Cursor Dashboard secrets (not in git)
@@ -80,10 +81,11 @@ category: env
 - none recorded
 
 ### Fixer resolution
-- needs-human: new `VK_REFRESH_TOKEN` in Dashboard. Code-side cache is `fixed` in INC-20260825-1526.
+- status: fixed (secret updated on this run; doctor PASS).
+- Before next VM: copy rotated refresh from `memory/site.env.local` into Dashboard (no file dump).
 
 ## INC-20260825-1552-fetch-error-5-ip
-status: open
+status: fixed
 run_date: 2026-08-25
 role: vk-fetch
 run_id: R20260825-1552
@@ -103,12 +105,13 @@ category: api
 - Handoff marked FAIL; incident recorded.
 
 ### Durable fix needed before next run
-- Sticky egress IP for the VM so a host-cached access_token stays valid for all 3 `groups.getRequests` calls.
-- Optional: write partial `requests.json` / continue other groups after error 5 instead of aborting the whole fetch.
-- Do not force-refresh on error 5 if cache exists (burns `VK_REFRESH_TOKEN`).
+- Sticky egress IP for the VM so a host-cached access_token stays valid for all 3 `groups.getRequests` calls (infra; cannot be fully fixed in code).
+- Write partial `requests.json` / continue other groups after error 5 instead of aborting the whole fetch.
+- One extra `refresh force=True` only after IP retries are exhausted, once per process — not a loop, not a second refresh on first error 5.
 
 ### Suggested files to inspect/change
 - `scripts/fetch_requests.py`
+- `scripts/vk_ip_refresh.py`
 - `scripts/vk_client.py`
 - Cloud Agent egress / environment network
 
@@ -116,4 +119,8 @@ category: api
 - none recorded
 
 ### Fixer resolution
-- pending
+- status: fixed (code). Sticky egress remains an infra note.
+- Shared helper `scripts/vk_ip_refresh.py`: same-token getRequests retries, then **one** extra refresh, then remaining groups (used by fetch + doctor; live approve recovers one IP error the same way).
+- `fetch_requests.py` always writes `requests.json`; failed groups get `error_code` + empty `user_ids`; `partial=true` if any error. Does not abort before write.
+- Extra refresh is not called on cache-hit success. Not a second refresh on the first error 5.
+- Infra: non-sticky egress can still yield error 5 after cache reuse; next vk-fetch may use one extra refresh without re-running doctor.
