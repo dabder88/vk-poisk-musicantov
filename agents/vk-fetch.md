@@ -12,7 +12,7 @@ is_background: false
 
 1. Read `memory/runs/<run-id>/context.json`
 2. Run `python3 scripts/fetch_requests.py --run-dir memory/runs/<run-id>`
-3. Append `=== VK FETCH ===` block to handoff with count of requests.
+3. Append `=== VK FETCH ===` block to handoff with count of requests per group.
 
 ## Not your zone
 

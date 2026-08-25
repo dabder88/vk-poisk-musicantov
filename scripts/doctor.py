@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from scripts.group_ids import parse_group_ids  # noqa: E402
 from scripts.vk_client import VkClient  # noqa: E402
 
 
@@ -24,23 +25,18 @@ REQUIRED_DIRS = [
     "memory/runs",
 ]
 
-REQUIRED_ENV = [
-    "VK_GROUP_ID",
-    "VK_ACCESS_TOKEN",
-]
-
 OPTIONAL_ENV = [
+    "VK_GROUP_ID",
+    "VK_GROUP_IDS",
+    "VK_ACCESS_TOKEN",
+    "VK_REFRESH_TOKEN",
+    "VK_DEVICE_ID",
+    "VK_CLIENT_ID",
+    "VK_SERVICE_TOKEN",
     "VK_API_VERSION",
     "APPROVE_ALLOW",
     "DRY_RUN",
 ]
-
-
-def check_env(name: str) -> tuple[bool, str]:
-    value = os.environ.get(name, "").strip()
-    if not value:
-        return False, f"MISSING env {name}"
-    return True, f"OK env {name} configured"
 
 
 def main() -> int:
@@ -55,12 +51,6 @@ def main() -> int:
             print(f"ERROR missing path {rel}")
             errors += 1
 
-    for name in REQUIRED_ENV:
-        ok, msg = check_env(name)
-        print(msg)
-        if not ok:
-            errors += 1
-
     for name in OPTIONAL_ENV:
         value = os.environ.get(name, "").strip()
         if value:
@@ -68,6 +58,30 @@ def main() -> int:
         else:
             print(f"WARN env {name} not set (using default)")
             warnings += 1
+
+    try:
+        group_ids = parse_group_ids()
+        print(f"OK group_ids={','.join(str(x) for x in group_ids)}")
+    except ValueError as exc:
+        print(f"ERROR {exc}")
+        errors += 1
+        group_ids = []
+
+    has_access = bool(os.environ.get("VK_ACCESS_TOKEN", "").strip())
+    has_refresh = bool(os.environ.get("VK_REFRESH_TOKEN", "").strip())
+    has_device = bool(os.environ.get("VK_DEVICE_ID", "").strip())
+
+    if not has_access and not has_refresh:
+        print("ERROR set VK_ACCESS_TOKEN or VK_REFRESH_TOKEN")
+        errors += 1
+    elif has_refresh and not has_device:
+        print("ERROR VK_DEVICE_ID is required together with VK_REFRESH_TOKEN")
+        errors += 1
+    elif has_refresh:
+        print("OK will refresh access_token on this host via VK ID refresh_token")
+    else:
+        print("WARN VK_REFRESH_TOKEN not set; Cloud Agent may hit error 5 (IP bind)")
+        warnings += 1
 
     approve_allow = os.environ.get("APPROVE_ALLOW", "no").strip().lower()
     if approve_allow not in ("yes", "no"):
@@ -78,15 +92,18 @@ def main() -> int:
 
     if errors == 0:
         try:
-            client = VkClient.from_env()
-            probe = client.probe_token()
-            if probe["ok"]:
-                print("OK VK API groups.getRequests reachable")
-                print(f"OK sample pending requests: {probe['pending_count_sample']}")
-            else:
+            client = VkClient.from_env(group_id=group_ids[0])
+            for gid in group_ids:
+                probe = client.with_group(gid).probe_token()
+                if probe["ok"]:
+                    print(
+                        f"OK VK API groups.getRequests reachable group_id={gid} "
+                        f"sample={probe['pending_count_sample']}"
+                    )
+                    continue
                 code = probe.get("error_code")
                 msg = probe.get("error_message")
-                print(f"ERROR VK API probe failed: code={code} msg={msg}")
+                print(f"ERROR VK API probe failed group_id={gid}: code={code} msg={msg}")
                 if code == 27:
                     print(
                         "HINT error 27: VK_ACCESS_TOKEN is a community (group) token. "
@@ -98,12 +115,21 @@ def main() -> int:
                         "HINT error 15: token lacks groups permission or user is not group admin. "
                         "See docs/how-to-get-vk-user-token.md"
                     )
+                elif code == 5:
+                    print(
+                        "HINT error 5 (IP): refresh access_token on THIS host with "
+                        "VK_REFRESH_TOKEN + VK_DEVICE_ID (VK ID grant_type=refresh_token). "
+                        "See docs/how-to-get-vk-user-token.md"
+                    )
                 errors += 1
         except Exception as exc:  # noqa: BLE001
             print(f"ERROR VK client: {exc}")
             errors += 1
 
-    if errors and not os.environ.get("VK_ACCESS_TOKEN", "").strip():
+    if errors and not (
+        os.environ.get("VK_ACCESS_TOKEN", "").strip()
+        or os.environ.get("VK_REFRESH_TOKEN", "").strip()
+    ):
         print(
             "HINT secrets not visible in this VM session. "
             "Restart Cloud Agent after adding Cursor Runtime Secrets, "

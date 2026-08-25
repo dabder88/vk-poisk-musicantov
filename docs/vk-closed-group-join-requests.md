@@ -116,7 +116,7 @@ curl -s "https://api.vk.com/method/groups.approveRequest" \
 - `response: [...]` / `1` → токен пригоден  
 - `error_code: 15` → нет scope / не тот тип токена  
 - `error_code: 27` → метод недоступен с group auth  
-- `error_code: 5` → токен невалиден / истёк  
+- `error_code: 5` → токен невалиден / истёк / **другой IP** (нужен refresh_token на том хосте, где вызывается API)  
 
 ---
 
