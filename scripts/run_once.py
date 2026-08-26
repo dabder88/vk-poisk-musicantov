@@ -17,6 +17,29 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+LOCAL_ENV = ROOT / "memory" / "local.env"
+
+
+def load_local_env(path: Path = LOCAL_ENV) -> None:
+    """Load gitignored memory/local.env into os.environ (do not overwrite set vars)."""
+    if not path.is_file():
+        return
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        if key and not os.environ.get(key, "").strip():
+            os.environ[key] = value
+
 
 def run(script: str, extra: list[str]) -> None:
     cmd = [sys.executable, str(ROOT / "scripts" / script), *extra]
@@ -41,6 +64,7 @@ def main() -> int:
     args = parser.parse_args()
 
     os.chdir(ROOT)
+    load_local_env()
 
     if args.count > 200:
         print("WARN VK getRequests count max is 200; using 200")
