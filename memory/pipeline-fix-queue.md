@@ -168,3 +168,47 @@ category: api
 - Fixer did **not** run `python3 scripts/doctor.py` (would extra-refresh on error 5). Did **not** call `refresh_from_env(force=True)`.
 - Cache-only probe (VkClient from cache, no OAuth, no extra refresh): cache exists mode 0600; `groups.getRequests` error 5 on all 3 group ids (`ok=0/3`). Host-bound access_token no longer matches current egress IP.
 - Director: **do not** re-run `doctor.py` on this VM (error 5 → another force refresh). Live approve stays off. Before next VM: copy rotated `VK_REFRESH_TOKEN` from gitignored `memory/site.env.local` into Dashboard (do not print/commit the file).
+
+## INC-20260826-0836-director-invalid-grant
+status: needs-human
+run_date: 2026-08-26
+role: vk-director
+run_id: none
+severity: blocker
+category: env
+
+### What went wrong
+- New Cloud VM after previous VM asked a human to copy rotated `VK_REFRESH_TOKEN` from that VM `memory/site.env.local` into Dashboard.
+- Branch with cache: `cursor/vk-join-dryrun-new-vm-39da` from `origin/cursor/vk-join-dryrun-new-vm-2af9`.
+- Env (no values): `VK_GROUP_ID` present (3 ids, matches `37759698`,`12830069`,`37636297`), `VK_GROUP_IDS` absent, `VK_REFRESH_TOKEN` present, `VK_DEVICE_ID` present, `VK_SERVICE_TOKEN` present, `VK_ACCESS_TOKEN` present. `APPROVE_ALLOW` absent (doctor default no). `DRY_RUN` absent (default yes).
+- No `memory/site.env.local` at start (normal for a new VM).
+- One `python3 scripts/doctor.py` only: FAIL `VK ID OAuth error invalid_grant: refresh_token is missing or invalid`. No getRequests. Cache file still absent (exchange did not persist).
+- start_run / vk-fetch / vk-decide / vk-approve not started (doctor gate FAIL). Not a second refresh. Not live approve.
+
+### How the agent recovered this run
+- Did not re-run doctor.
+- Did not call `refresh_from_env(force=True)`.
+- Did not start fetch/decide/approve.
+- Secrets not logged or committed.
+
+### Durable fix needed before next run
+- **Do not fix with code.** Dashboard `VK_REFRESH_TOKEN` is dead (`invalid_grant` missing or invalid). Extra doctor/refresh will not revive it and can make things worse.
+- Human: issue a new VK ID refresh (`python3 scripts/get_vk_token.py` per `docs/how-to-get-vk-user-token.md`) **or** copy a still-valid rotated refresh from `memory/site.env.local` of a VM where exchange **succeeded**, into Dashboard. Then start a **new** VM. Do not reuse this VM for doctor.
+- This VM has no host cache; do not probe `VK_ACCESS_TOKEN` from Dashboard as the API source (client/IP mismatch → error 5/10).
+- Fixer skill/agent currently says run `doctor.py`; for `invalid_grant` that is forbidden. Guard the fixer prompt so it marks `needs-human` and does **not** call doctor/refresh.
+
+### Suggested files to inspect/change
+- Cursor Dashboard secret `VK_REFRESH_TOKEN` (human only)
+- `docs/vk-join-session-status.md`
+- `.cursor/agents/vk-fixer.md`
+- `.cursor/skills/fixer-vk-join/SKILL.md`
+- `agents/vk-fixer.md` and `skills/fixer-vk-join/SKILL.md` if they exist as sources
+
+### Secrets
+- none recorded
+
+### Fixer resolution
+- status: needs-human. Код не чинит мёртвый Dashboard `VK_REFRESH_TOKEN` (`invalid_grant`: missing or invalid). Кэш на этой VM нет — обмен не состоялся.
+- `python3 scripts/doctor.py` **не запускали**. `refresh_from_env` / `force=True` / OAuth / getRequests / approve **не вызывали**. Новый refresh/кэш не изобретали.
+- Durable prompt-guard: fixer agent + skill (`.cursor/` и `agents/` / `skills/`) — при `invalid_grant` doctor и refresh запрещены, статус `needs-human`, стоп. Обычный doctor только если инцидент не про `invalid_grant`.
+- Hint человеку (без секретов): выпустить новый VK ID refresh (`python3 scripts/get_vk_token.py`, `docs/how-to-get-vk-user-token.md`) **или** скопировать ещё валидный ротированный refresh из `memory/site.env.local` той VM, где обмен **удался**, в Cursor Dashboard. Затем **новая** VM. Эту VM для doctor/refresh не использовать. Не печатать и не коммитить токены. `docs/vk-join-session-status.md` обновляет Director.
