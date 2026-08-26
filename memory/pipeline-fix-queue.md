@@ -124,3 +124,36 @@ category: api
 - `fetch_requests.py` always writes `requests.json`; failed groups get `error_code` + empty `user_ids`; `partial=true` if any error. Does not abort before write.
 - Extra refresh is not called on cache-hit success. Not a second refresh on the first error 5.
 - Infra: non-sticky egress can still yield error 5 after cache reuse; next vk-fetch may use one extra refresh without re-running doctor.
+
+## INC-20260826-0625-live-refresh-already-applied
+status: needs-human
+run_date: 2026-08-26
+role: vk-director
+run_id: none
+severity: blocker
+category: env
+
+### What went wrong
+- User asked for live approve (`APPROVE_ALLOW=yes` `DRY_RUN=no` in this process; Dashboard at VM boot was still no/yes).
+- Cache `memory/site.env.local` still present from 2026-08-25. Doctor reused cached access_token (no refresh), then getRequests needed extra refresh (error 5/1130).
+- Extra refresh: `invalid_grant: session is compromised because refresh token has already been applied`. That refresh was already exchanged on this VM yesterday. Second doctor was not run.
+- Dashboard `VK_REFRESH_TOKEN` update does not reload into an already running Cloud Agent. Live fetch/approve not started.
+
+### How the agent recovered this run
+- Stopped at doctor FAIL. No start_run, no fetch/decide/approve, no doctor loop, no live API approve.
+- Secrets not logged.
+
+### Durable fix needed before next run
+- Start a **new** Cloud Agent after Dashboard secrets are saved (this VM cannot refresh again).
+- Dashboard: `APPROVE_ALLOW=yes` and `DRY_RUN=no` before that new agent starts, plus current `VK_REFRESH_TOKEN` / `VK_DEVICE_ID`.
+- Do not re-run doctor on this VM.
+
+### Suggested files to inspect/change
+- Cursor Dashboard secrets (not in git)
+- new Cloud Agent session (not this VM)
+
+### Secrets
+- none recorded
+
+### Fixer resolution
+- needs-human: new Cloud Agent with updated secrets. Code cache is fine; this VM's refresh is spent.
