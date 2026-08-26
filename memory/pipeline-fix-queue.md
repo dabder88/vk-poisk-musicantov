@@ -212,3 +212,49 @@ category: env
 - `python3 scripts/doctor.py` **не запускали**. `refresh_from_env` / `force=True` / OAuth / getRequests / approve **не вызывали**. Новый refresh/кэш не изобретали.
 - Durable prompt-guard: fixer agent + skill (`.cursor/` и `agents/` / `skills/`) — при `invalid_grant` doctor и refresh запрещены, статус `needs-human`, стоп. Обычный doctor только если инцидент не про `invalid_grant`.
 - Hint человеку (без секретов): выпустить новый VK ID refresh (`python3 scripts/get_vk_token.py`, `docs/how-to-get-vk-user-token.md`) **или** скопировать ещё валидный ротированный refresh из `memory/site.env.local` той VM, где обмен **удался**, в Cursor Dashboard. Затем **новая** VM. Эту VM для doctor/refresh не использовать. Не печатать и не коммитить токены. `docs/vk-join-session-status.md` обновляет Director.
+
+## INC-20260826-1106-director-error-5-after-extra-refresh
+status: needs-human
+run_date: 2026-08-26
+role: vk-director
+run_id: none
+severity: blocker
+category: api
+
+### What went wrong
+- New Cloud VM d753 (Сессия 9), not 39da. Branch with cache: `cursor/vk-join-dryrun-new-vm-d753` from `origin/cursor/vk-join-dryrun-new-vm-39da`.
+- Env (no values): `VK_GROUP_ID` present (3 ids, matches `37759698`,`12830069`,`37636297`), `VK_GROUP_IDS` absent, `VK_REFRESH_TOKEN` present, `VK_DEVICE_ID` present, `VK_SERVICE_TOKEN` present, `VK_ACCESS_TOKEN` present. `APPROVE_ALLOW` absent (default no). `DRY_RUN` absent (default yes).
+- No `memory/site.env.local` at start (normal for a new VM). Snapshot install doctor on `main` earlier failed at CSV parse (`int()`); that build did not complete OAuth.
+- One `python3 scripts/doctor.py` only on this VM: VK ID refresh OK (`user_id=4253689`, `scope=groups`). Cache file created (0600, gitignored). Then getRequests error 5 → same-token retries → **one** extra refresh (as designed, retry **all** groups) → still error 5 on `37759698` and `12830069`. Group `37636297` OK (`sample=1`). Doctor FAIL errors=2.
+- start_run / vk-fetch / vk-decide / vk-approve not started (doctor gate FAIL). Not a second doctor. Not live approve. Not `invalid_grant`.
+- Same infra class as INC-0552: Cloud Agent egress IP is not sticky. Extra-refresh-all code already landed; this is not a missing retry-all bug.
+
+### How the agent recovered this run
+- Did not re-run doctor.
+- Did not call `refresh force` again.
+- Did not start fetch/decide/approve.
+- Secrets not logged or committed.
+
+### Durable fix needed before next run
+- **Do not** re-run `doctor.py` or `refresh force` on this VM (would burn rotated refresh).
+- Do **not** invent a new cache/refresh path. INC-0552 already retries all groups after one extra refresh.
+- Infra: non-sticky Cloud Agent egress; error 5 can remain after extra refresh. Dry-run must run on the person's PC (one IP, disk cache). Do not spawn another Cloud VM «на всякий случай».
+- `.cursor/environment.json` `install` still runs `python3 scripts/doctor.py || true` on snapshot builds (can exchange/burn refresh before the agent starts). Remove doctor from install; doctor is a Director gate, not image setup.
+- Human: copy rotated `VK_REFRESH_TOKEN` from this VM `memory/site.env.local` into Dashboard **only if** another cloud run is actually needed. Preferred next step: one `python3 scripts/doctor.py` on the PC (branch with cache), then pipeline there. Do not print or commit the cache file.
+
+### Suggested files to inspect/change
+- `.cursor/environment.json`
+- `.cursor/agents/vk-fixer.md`
+- `.cursor/skills/fixer-vk-join/SKILL.md`
+- `skills/fixer-vk-join/SKILL.md`
+- `docs/vk-join-session-status.md` (Director updates at end)
+
+### Secrets
+- none recorded
+
+### Fixer resolution
+- status: needs-human. Код не чинит sticky egress IP Cloud Agent. Error 5 после одного extra refresh (retry-all уже в коде, INC-0552) — infra, не `fixed`.
+- `.cursor/environment.json` `install`: убран `python3 scripts/doctor.py || true`. Остался только `pip install -r requirements.txt`. Doctor — gate Director, не snapshot install (install doctor сжигал refresh до старта агента).
+- Durable prompt-guard: fixer agent + skill (`.cursor/` и `agents/` / `skills/`) — hard-stop не только на `invalid_grant`, но и на **error 5 после одного extra refresh**: doctor/refresh запрещены, статус `needs-human` (infra / dry-run на ПК), стоп. `vk_oauth` / `vk_client` / кэш не переписывали.
+- `python3 scripts/doctor.py` **не запускали**. `refresh_from_env` / `force=True` / OAuth / getRequests / approve **не вызывали**. Новый refresh/кэш не изобретали. Live не включали. INC-0836 не трогали (`needs-human`).
+- Hint человеку (без секретов): dry-run на ПК (один IP, disk cache). Скопировать ротированный `VK_REFRESH_TOKEN` из gitignored `memory/site.env.local` этой VM в Dashboard **только если** снова понадобится облако. Файл не печатать и не коммитить. Не поднимать ещё одну Cloud VM «на всякий случай». `docs/vk-join-session-status.md` обновляет Director.

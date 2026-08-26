@@ -13,6 +13,7 @@ tmp/
 memory/runs/*/
 !memory/runs/.gitkeep
 memory/site.env.local
+memory/local.env
 memory/vk-oauth-pending.json
 memory/vk-oauth-result.json
 memory/vk-oauth-token.tmp

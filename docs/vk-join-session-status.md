@@ -32,7 +32,7 @@
 | `vk-qa` | Проверить артефакты прогона (`qa.json`). |
 | `vk-fixer` | Только если в очереди `status: open`: починить код/контракт, не жечь refresh в цикле. |
 
-Скрипты — гейты (`scripts/doctor.py` и др.), не замена ролей (`run_pipeline.sh` не крутить вместо subagents).
+Скрипты — гейты (`scripts/doctor.py` и др.), не замена ролей в облаке (`run_pipeline.sh` / `run_once.py` не крутить вместо subagents). На ПК человека `python scripts/run_once.py` (проба) и `--live` (принять).
 
 ---
 
@@ -84,7 +84,7 @@
 2. Если менялось «работает / не работает» — поправь таблицы.
 3. Новый прогон или инцидент — **добавь** запись в **«Журнал сессий»** (сверху журнала, новые выше). Старые записи не удаляй.
 4. Обнови **«Следующий этап»** и дату `Обновлено`.
-5. Коммить файл вместе с кодом сессии. Не коммитить `memory/site.env.local`, `.cursor/vk-join-handoff.md`, `memory/runs/*/`.
+5. Коммить файл вместе с кодом сессии. Не коммитить `memory/site.env.local`, `memory/local.env`, `.cursor/vk-join-handoff.md`, `memory/runs/*/`.
 
 Шаблон журнала:
 
@@ -105,17 +105,123 @@
 | Поле | Значение |
 |------|----------|
 | Обновлено | 2026-08-26 |
-| Этап | Человек обновил репо на ПК (ветка с кэшем). Следующий шаг — **новые ключи на ПК** и dry-run **на ПК**, не на этой Cloud VM. Dashboard refresh этой сессии мёртвый (`invalid_grant`). |
+| Этап | **ПК: 162 заявки приняты** (`R20260826-1453`). Автоприём — Планировщик на этом ПК, не облако. |
 | Цель продукта | По расписанию принимать заявки в закрытые группы ВК (`approve_all`). |
-| Где мы сейчас | Облачный прогон 39da остановился на doctor (`invalid_grant`). Код и выводы записаны. Человек: репозиторий на компьютере обновлён. |
-| Последний live VK | Нет. Approve только dry-run (или skipped). |
-| Последний успешный полный dry-run | 2026-08-25, `run_id=R20260825-1552`, **другая** Cloud VM: 159 заявок, qa PASS, approved=0. |
-| Последняя сессия (эта VM) | 2026-08-26 `cursor/vk-join-dryrun-new-vm-39da`: один doctor FAIL `invalid_grant`. INC-0836 `needs-human`. Эту VM больше не использовать. |
-| Open incidents | INC-20260826-0836-director-invalid-grant — `needs-human` (код не чинит). |
-| Код брать с | Ветка **с кэшем**, не `main`. База: `cursor/vk-join-dryrun-new-vm-2af9`. Эта сессия: `cursor/vk-join-dryrun-new-vm-39da`. |
-| Эту VM | **Не** `doctor.py`, **не** `refresh force`. |
+| Где мы сейчас | Человек подтвердил: все принялись. Dry-run и live на ПК зелёные. Облако d753: doctor FAIL error 5. Файл `memory/local.env` человек создал; скрипт его не всегда видел (имя/пустое поле) — донастройка Планировщика. |
+| Последний live VK | 2026-08-26 ПК `R20260826-1453`: 71+29+62=162, qa PASS. Человек: «Все принялось». |
+| Последний успешный полный dry-run | 2026-08-26 `R20260826-pc` ПК: 162, qa PASS, approved=0. Раньше облако 2026-08-25 `R20260825-1552`, 159. |
+| Последняя сессия (облако) | 2026-08-26 `cursor/vk-join-dryrun-new-vm-d753`: doctor FAIL error 5. INC-1106 `needs-human`. |
+| Open incidents | Нет `status: open`. Needs-human: INC-1106 (облако IP), INC-0836 (VM 39da `invalid_grant`). |
+| Код брать с | Ветка **с кэшем**, не `main`. `cursor/vk-join-dryrun-new-vm-d753`. |
+| Облако d753 / 39da | **Не** `doctor.py`, **не** `refresh force`, **не** Cursor Automation. |
 | Паблики | `VK_GROUP_ID` CSV: `37759698`,`12830069`,`37636297`. `VK_GROUP_IDS` не задан. |
-| ПК человека | Репозиторий обновлён, ветка с кэшем. Дальше: новый `start`/`finish`, запуск doctor на ПК. |
+| ПК человека | `F:\ProjectsAI\vk-poisk-musicantov`, PowerShell. Кэш `memory/site.env.local`. Live прошёл. Дальше Планировщик + `run-live.ps1`. |
+
+---
+
+## Итог сессии 2026-08-26 (простыми словами)
+
+Облако снова не смогло принять заявки: токен живой, но запросы уходят с разных IP (error 5). На **компьютере человека** тот же pipeline прошёл целиком.
+
+| Прогон | Что вышло |
+|--------|-----------|
+| Облако 39da | doctor FAIL `invalid_grant`. Эту VM не использовать. |
+| Облако d753 (Сессия 9) | refresh OK, потом error 5 на 2 из 3 групп. Fetch не было. |
+| ПК doctor | PASS, три группы отвечают. |
+| ПК dry-run `R20260826-pc` | 162 заявки, **никого не приняли** (проба). qa PASS. |
+| ПК live `R20260826-1453` | 71+29+62=162, **человек подтвердил: все принялись**. qa PASS. |
+
+Автоприём по расписанию — **Планировщик Windows на этом ПК**, не Cursor Automation в облаке.
+
+Код: ветка `cursor/vk-join-dryrun-new-vm-d753` (с кэшем), не `main`. Одна команда на ПК: `scripts/run_once.py`. Для расписания: `scripts/run-live.ps1` + gitignored `memory/local.env`. `site.env.local` не трогать (кэш токена).
+
+---
+
+## Как запускать автоприём
+
+Рабочая папка: `F:\ProjectsAI\vk-poisk-musicantov`. Консоль: **PowerShell** (не Git Bash). Ветка с кэшем, не `main`.
+
+Два файла в `memory\` (оба **не** в git):
+
+| Файл | Зачем | Трогать? |
+|------|--------|----------|
+| `site.env.local` | Кэш access/refresh после удачного doctor | Не удалять, не слать в чат |
+| `local.env` | Группы + `VK_DEVICE_ID` + сервисный ключ для Планировщика | Создать рядом, не вместо кэша |
+
+В `local.env` три строки `имя=значение` (без кавычек и пробелов вокруг `=`):
+
+- группы — то же имя секрета, что в Dashboard, значение из таблицы «Какие паблики» (три числа через запятую);
+- device id — с того же `finish`, что refresh;
+- сервисный ключ приложения.
+
+Пустое значение после `=` скрипт не подхватит. Файл не коммитить и не слать в чат.
+
+Имя файла именно `local.env`, не `local.env.txt` (в проводнике включить расширения). Кодировка UTF-8 или Unicode.
+
+### Вручную (сейчас)
+
+Проба (никто не вступит):
+
+```powershell
+python scripts/run_once.py --count 200
+```
+
+Принять всех в очереди:
+
+```powershell
+python scripts/run_once.py --live --count 200
+```
+
+Если скрипт не видит группы — в том же окне сначала задай `VK_GROUP_ID` списком из таблицы пабликов (три числа через запятую, без пробелов), затем ту же команду `--live`.
+
+`--count 200` — лимит ВК, больше нельзя. Doctor перед каждым прогоном **не** запускать, если кэш уже есть.
+
+Если `local.env` подхватился, после `git pull` в начале будет строка `OK loaded local.env keys=...` (только имена ключей). Если `ERROR set VK_GROUP_ID` — задай `$env:VK_GROUP_ID` как в команде выше.
+
+### По расписанию (Планировщик Windows)
+
+1. `git pull origin cursor/vk-join-dryrun-new-vm-d753`
+2. Есть оба файла: `memory\site.env.local` и `memory\local.env`.
+3. Планировщик заданий → Создать задачу.
+4. Триггер: каждые 30 или 60 минут.
+5. Действие: программа `powershell.exe`
+6. Аргументы:
+
+```text
+-NoProfile -ExecutionPolicy Bypass -File "F:\ProjectsAI\vk-poisk-musicantov\scripts\run-live.ps1"
+```
+
+7. Выполнять, когда пользователь вошёл в Windows. Спящий ПК заявки не примет.
+
+Скрипт сам ставит live (`APPROVE_ALLOW=yes`, `DRY_RUN=no`) и `count=200`.
+
+### Чего не делать
+
+- Cursor Automation / новый Cloud Agent «на всякий случай».
+- `doctor.py` в цикле и `get_vk_token.py refresh` «для проверки».
+- `&&` в Windows PowerShell 5 (нужна `;` или отдельные строки).
+- Коммитить `site.env.local` / `local.env` / токены в чат.
+- Live в облаке, пока egress IP скачет.
+
+---
+
+## Проблемы этой сессии и как решили
+
+| Симптом | Почему | Что сделали |
+|---------|--------|-------------|
+| Облако 39da: `invalid_grant` | Refresh в Dashboard уже использован / мёртвый | Не крутить doctor. INC-0836 needs-human. Новый вход VK на ПК (`start` → «Разрешить» → `finish`). |
+| Облако d753: refresh OK, 2 группы error 5 | Токен к IP, облако ходит с разных адресов | Один extra refresh, стоп. INC-1106 needs-human (infra). Перешли на ПК. |
+| «Какой новый ключ?» | Путаница: сервисный ключ приложения vs одноразовая пара refresh+device_id | Сервисный ключ не менять. `start`/`finish` — это вход в ВК на **этой** машине. |
+| PowerShell: `&&` недопустим | Старый PowerShell не знает `&&` | Команды через `;` или по строкам. На Windows `python`, не `python3`. |
+| Вставка превратилась в `\x3b` | Точка с запятой сломалась при копировании | Вставлять команды **по одной**. |
+| `device_id is invalid`, длины 8 и 8 | В переменные попали обрезки, не полные строки с `finish` | Нужны длины примерно 200+ и десятки. Пара **с одного** `finish`. |
+| Длины 0 | Закрыли окно PowerShell — `$env:...` стёрлись | Заново задать в **этом** окне или писать в `local.env`. |
+| `count should be less or equal to 200` | `run_once` запросил 1000 | Никого не приняли. Повтор `--count 200`. В коде лимит 200. |
+| `ERROR set VK_GROUP_ID` при `--live` | Новое окно / `local.env` не прочитался (пусто, `.txt`, не тот путь) | Задать список пабликов в этом окне (таблица выше) или починить `local.env`. Лоадер читает UTF-16 и `.txt`. |
+| Пять команд вместо одной | Ручная проверка, чтобы не принять людей случайно | `python scripts/run_once.py --live --count 200`. Расписание: `run-live.ps1`. |
+| Зачем облако, если ПК работает | Cursor Automation = облако; IP там не липкий | Автоприём на ПК. Облако не включать, пока IP не стабилен. |
+
+Старые API-ошибки (5, 27, 15, кэш refresh) — таблица **«Ошибки и как чинили»** ниже.
 
 ---
 
@@ -129,8 +235,9 @@
 - Fetch пишет `requests.json` даже при partial (пустые `user_ids` + `error_code`).
 - Гейты approve: live только если `APPROVE_ALLOW=yes` **и** `DRY_RUN=no`. Иначе dry-run.
 - Политика decide: `approve_all`.
-- Инциденты: INC-1526, INC-1545, INC-1552, INC-0552 — fixed. INC-0836 — `needs-human` (`invalid_grant`, код не чинит).
+- Инциденты: INC-1526, INC-1545, INC-1552, INC-0552 — fixed. INC-0836 — `needs-human` (`invalid_grant` на VM 39da). INC-1106 — `needs-human` (error 5 после extra refresh на VM d753, infra).
 - 2026-08-26 сессия 39da: разобрали двухдневную путаницу «опять не тот токен»; человек обновил репо на ПК на ветку с кэшем.
+- 2026-08-26 сессия d753 + ПК: облако doctor FAIL error 5; на ПК doctor PASS → dry-run 162 → live 162 принято. `run_once.py`, `run-live.ps1`, `memory/local.env`, лимит getRequests 200, doctor убран из snapshot `install`.
 
 `main` **без** кэша снова делает refresh в каждом процессе и сжигает секрет. Не ветвиться от голого `origin/main`.
 
@@ -138,16 +245,18 @@
 
 ## Что сделали в этой сессии, зачем, выводы
 
-**Зачем сессия.** Проверить, что Dashboard `VK_REFRESH_TOKEN` (скопированный человеком с прошлой Cloud VM) работает на **новой** VM. Без зелёного dry-run на новой машине нельзя включать live и Automation.
+**Зачем.** Принять заявки и понять, где может жить автоприём. Облако 39da мёртвое (`invalid_grant`). Новая VM d753 — проверка «вдруг IP повезёт». Параллельно человек на ПК.
 
-**Что сделали (облако 39da).**
+**Облако d753.** Один doctor: refresh OK, extra refresh, 2/3 групп error 5. start_run не было. INC-1106. Fixer не крутил doctor: убрал `doctor.py` из `environment.json` install; hard-stop fixer на error 5 после extra refresh.
 
-1. Прочитали этот файл, очередь инцидентов, ветка с кэшем (не `main`).
-2. Env: три группы в `VK_GROUP_ID`, `VK_GROUP_IDS` нет, refresh/device/service есть, `APPROVE_ALLOW`/`DRY_RUN` нет → только dry-run. Кэша на новой VM не было.
-3. Один `python3 scripts/doctor.py` → `invalid_grant` (refresh missing or invalid). Обмена не было, `memory/site.env.local` нет. Fetch/decide/approve не запускали. Повторный doctor не крутили.
-4. INC-0836 `needs-human`. В fixer: при `invalid_grant` doctor запрещён.
-5. Человеку сначала написали «больше никогда не копировать с VM» — это **сильнее журнала**. Потом сверили с тестами и поправили.
-6. Человек на ПК обновил репозиторий и переключился на ветку с кэшем (не `main`).
+**ПК (итог, который нужен продукту).**
+
+1. Doctor PASS по трём группам (после нормальных длин refresh/device_id).
+2. Dry-run `R20260826-pc`: 162, approved=0, qa PASS.
+3. Live `R20260826-1453`: 162, человек: все принялись. qa PASS.
+4. Одна команда `run_once.py --live --count 200`. Расписание: Планировщик + `run-live.ps1` + `local.env`.
+
+**Вывод.** Надёжный приём — ПК с одним IP и кэшем на диске. Облако Cursor для live/Automation пока лотерея (error 5). Код кэша/refresh заново не писать. `main` без кэша не использовать.
 
 **Почему два дня казалось «не тот токен».** Смешали две разные поломки:
 
@@ -159,7 +268,7 @@
 **Выводы (строго по тестам, без домыслов).**
 
 - Копировать refresh с **живой** VM, где обмен только что прошёл и файл `memory/site.env.local` ещё есть — **работало** (INC-1545 → doctor PASS → R20260825-1552). `VK_DEVICE_ID` при таком копировании не меняют.
-- Копировать со **уже мёртвой** VM / когда doctor уже сказал `invalid_grant` — нечего копировать. Нужен новый выпуск ключей на ПК (`get_vk_token.py start` + `finish`). Так сейчас.
+- Копировать со **уже мёртвой** VM / когда doctor уже сказал `invalid_grant` — нечего копировать. Нужен новый выпуск ключей на ПК (`get_vk_token.py start` + `finish`). Так было на 39da. На d753 обмен **удался** — для следующего облака копировать refresh с **этой** живой VM, не с 39da.
 - Новый `finish` на ПК: в секреты кладут **оба** поля с этого раза (`VK_REFRESH_TOKEN` и `VK_DEVICE_ID`). Не access, не id. После `finish` ключ не «проверяют» — проверка сжигает.
 - Облако Cursor не даёт 100%: 26 авг ключ был живой, три группы всё равно не прошли из‑за чужого IP. Полный dry-run на облаке один раз был (25 авг) — когда адрес случайно не скакал.
 - Чтобы **наверняка** принять заявки: dry-run на своём ПК (один адрес, кэш на диске). Live не включать, пока dry-run на ПК не зелёный.
@@ -171,10 +280,11 @@
 
 | Что | Доказательство |
 |-----|----------------|
-| Обмен Dashboard `VK_REFRESH_TOKEN` на VM (25–26 авг, **другие** машины) | refresh OK, `user_id=4253689`, `scope=groups` |
-| Эта VM (2026-08-26, `39da`) | refresh **не** обменялся: `invalid_grant` missing or invalid |
-| Кэш после refresh | `memory/site.env.local` появляется, gitignored |
-| Полный dry-run pipeline (старая VM) | R20260825-1552: fetch 70+28+61=159, decide 159, approve 159 dry_run, qa PASS |
+| Doctor PASS по 3 группам **на ПК** (2026-08-26) | refresh OK `user_id=4253689` `scope=groups`; getRequests `37759698`/`12830069`/`37636297` sample=1; `SUMMARY errors=0` |
+| Кэш после refresh (d753) | `memory/site.env.local` есть, mode 0600, gitignored |
+| getRequests одна группа на d753 | `37636297` sample=1 |
+| VM 39da (2026-08-26) | refresh **не** обменялся: `invalid_grant` (исторически) |
+| Live `groups.approveRequest` на ПК | `R20260826-1453`: 162, qa PASS. Человек: все принялись |
 | Multi-group parse + скрипты | юнит-тесты `tests/test_group_ids.py` и др. |
 | Кэш / extra refresh / partial fetch | mock-тесты `tests/test_vk_oauth.py`, `tests/test_vk_ip_refresh.py` |
 
@@ -184,11 +294,12 @@
 
 | Что | Статус |
 |-----|--------|
-| Doctor PASS по **всем трём** группам на **этой** VM | Нет: `invalid_grant`, getRequests не вызывались |
-| Doctor PASS по 3 группам на VM от 2026-08-26 (другая) | Нет: refresh OK, затем error 5 после extra refresh |
-| Полный pipeline (fetch→qa) после обновления секрета на новой VM | Не запускался (gate doctor) |
-| Live `groups.approveRequest` | Намеренно выкл. Не включать, пока нет qa PASS в dry-run на новой VM |
-| Sticky egress IP Cloud Agent | Нет гарантии: токен привязан к IP выдачи, следующий HTTP может уйти с другого IP |
+| Doctor PASS по **всем трём** группам на **этой** VM (d753) | Нет: extra refresh, затем error 5 на `37759698` и `12830069` |
+| Doctor PASS по 3 группам на VM 2af9 (2026-08-26) | Нет: refresh OK, затем error 5 после extra refresh |
+| Doctor PASS на VM 39da | Нет: `invalid_grant`, getRequests не было |
+| Полный pipeline (fetch→qa) **на ПК** | Да: `R20260826-pc` qa PASS, approve=dry_run, approved=0 |
+| Live `groups.approveRequest` | Сделано на ПК `R20260826-1453`. Повтор сразу не нужен. Облако live не включать |
+| Sticky egress IP Cloud Agent | Нет: повтор 26 авг на двух новых VM (2af9 и d753) |
 | Автокопирование ротированного refresh в Dashboard | Невозможно из агента. Нужен человек |
 
 ---
@@ -205,31 +316,30 @@
 | Refresh на каждый процесс | Doctor+fetch+approve жгли Dashboard token | Кэш `memory/site.env.local` (`20fcc46`). |
 | Fetch abort, нет `requests.json` | Error 5 на 2-й группе ронял скрипт | Partial write + extra refresh (`3938aa8`). |
 | Extra refresh ретраил только still_ip | Группа, ок на старом токене, не проверялась новым | Retry **всех** group_ids (`ac813db`). |
+| `doctor.py` в `environment.json` install | Snapshot build менял refresh до Director | Убран из install (сессия d753). Doctor — gate, не setup. |
+| `count` > 200 в getRequests | ВК error 100, 0 заявок | Лимит 200 в `run_once` / `fetch_requests`. Live повтор с `--count 200`. |
+| `local.env` не подхватился | Не то имя, UTF-16, пустое значение групп | Лоадер: utf-8-sig/utf-16, `.txt`; в выводе `OK loaded ... keys=`. Запас: переменная групп в этом окне. |
+| PowerShell `&&` / длины env 0 | Не bash; `$env:` живёт только в этом окне | `;` или отдельные строки; для расписания — файл `local.env`. |
 
 ---
 
 ## Следующий этап (человек + следующий агент)
 
-### Человек (на ПК, уже обновлён репо)
+### Человек
 
-1. В папке проекта ветка с кэшем (`cursor/vk-join-dryrun-new-vm-39da` или `cursor/vk-join-dryrun-new-vm-2af9`), не `main`.
-2. Новый выпуск: `python3 scripts/get_vk_token.py start` → Разрешить → `finish --redirect-url '…'`.
-3. Секреты **с этого finish**: `VK_REFRESH_TOKEN` + `VK_DEVICE_ID`. Не access. Сервисный ключ не трогать, если приложение то же. `VK_GROUP_ID` CSV трёх id.
-4. Не вызывать `refresh` «для проверки».
-5. Один `python3 scripts/doctor.py` **на этом ПК**. PASS = три группы отвечают. Потом pipeline (Director / start_run + роли). Live не включать.
-6. Эту Cloud VM 39da для doctor не использовать.
-
-Копировать `VK_REFRESH_TOKEN` из кэша можно только с **ещё живой** машины, где обмен только что удался. С 39da и с уже выключенных VM — нельзя.
+1. Автоприём: Планировщик Windows → `scripts/run-live.ps1`, оба файла в `memory\` (`site.env.local` + `local.env` с непустым `VK_GROUP_ID`).
+2. Ручной приём: `python scripts/run_once.py --live --count 200` (группы из таблицы пабликов, если `local.env` не подхватился).
+3. Облако и 39da/d753 для doctor/Automation не использовать.
 
 ### Следующий агент
 
-Сначала целиком этот файл. Не выдумывать refresh/кэш. Не doctor на мёртвом Dashboard токене этой VM. Не советовать копировать refresh с мёртвых VM. Если человек уже на ПК с новой парой — один doctor на **той** машине, где вызывают API.
+Сначала этот файл (блоки «Итог сессии» и «Как запускать автоприём»). Live на ПК был. Не doctor на облаке. Не выдумывать повторный live.
 
 ---
 
 ## Какой результат хотим
 
-**Ближайший:** на ПК (ветка с кэшем) новый `start`/`finish`, один doctor, dry-run pipeline. Облако 39da не трогать. Live не включать.
+**Ближайший:** донастроить Планировщик на ПК (файл `local.env` читается, задача тикает). Облако не автозапуск.
 
 **Дальше:** live только после зелёного dry-run на той машине, где вызывают API; Automation на облаке — только понимая, что error 5 может повториться.
 
@@ -240,6 +350,44 @@
 ---
 
 ## Журнал сессий
+
+### 2026-08-26 — docs — итог сессии + инструкция автоприёма
+- В этот файл: итог простыми словами, как запускать вручную и Планировщиком, таблица проблем сессии.
+- Человек: 162 приняты; `local.env` создал; скрипт его не всегда видел — в инструкции запас через `$env:VK_GROUP_ID`.
+
+### 2026-08-26 — docs — автозапуск на ПК, не облако
+- Человек: все 162 принялись. Дальше Планировщик Windows + `scripts/run-live.ps1` + gitignored `memory/local.env`.
+- Cursor Automation на облаке не ставить: error 5.
+
+### 2026-08-26 — R20260826-1453 — ПК, live PASS
+- Человек: `run_once.py --live --count 200`. Кэш reuse, без doctor. `APPROVE_ALLOW=yes` `DRY_RUN=no`.
+- fetch: 37759698=71, 12830069=29, 37636297=62, всего 162, errors=0.
+- decide: to_approve=162 skip=0.
+- approve: live path (from_cache), не dry-run. qa PASS errors=0. Строка `OK approved=` в чат не пришла.
+- Первый `--live` с count=1000: error 100, 0 заявок, никого не приняли. Затем count=200.
+
+### 2026-08-26 — R20260826-pc — ПК, полный dry-run PASS
+- Человек, PowerShell. Кэш reuse, без второго refresh. `APPROVE_ALLOW=no` `DRY_RUN=yes`.
+- fetch: 37759698=71, 12830069=29, 37636297=62, всего 162, errors=0.
+- decide: to_approve=162 skip=0 mode=approve_all.
+- approve: 162 dry_run, approved=0.
+- qa: PASS errors=0.
+- Live не было. Облако не трогали.
+
+### 2026-08-26 — run_id none — ПК, doctor PASS по 3 группам
+- Человек, PowerShell, `F:\ProjectsAI\vk-poisk-musicantov`. Длины refresh=262 device_id=86. Не облако.
+- Один `python scripts/doctor.py`: refresh OK `user_id=4253689` `scope=groups`; getRequests OK `37759698`/`12830069`/`37636297` sample=1; `SUMMARY errors=0`.
+- Fetch/decide/approve на ПК ещё нет. Live нет. `APPROVE_ALLOW=no` `DRY_RUN=yes`.
+- Hint: не второй doctor; то же окно; дальше start_run+pipeline dry-run.
+
+### 2026-08-26 — run_id none — VM d753, refresh OK, doctor FAIL error 5 после extra refresh
+- Агент / ветка: Сессия 9 `bc-…d753`, `cursor/vk-join-dryrun-new-vm-d753` от `…-39da`. Не VM 39da.
+- Env: `VK_GROUP_ID` present (3 id), `VK_GROUP_IDS` absent, refresh/device/service/access present. `APPROVE_ALLOW`/`DRY_RUN` absent → dry-run. Кэша на старте не было.
+- Doctor **один раз**: refresh OK `user_id=4253689` `scope=groups`; extra refresh; `37759698` error 5; `12830069` error 5; `37636297` sample=1. FAIL. start_run/fetch/decide/approve не было. Повторный doctor не крутили.
+- Approve: skipped (нет PASS). qa: нет. Live не было.
+- INC-1106 `needs-human` (infra IP). Fixer: doctor/refresh не вызывал. Убран `doctor.py` из `.cursor/environment.json` install. Hard-stop fixer на error 5 после extra refresh.
+- INC-0836 не меняли. Dashboard refresh на d753 живой (в отличие от 39da).
+- Hint: dry-run на ПК. Эту VM не doctor. Не новое облако. Ротированный refresh — в gitignored `memory/site.env.local` этой VM (не печатать, не коммитить); в Dashboard копировать только если снова нужно облако.
 
 ### 2026-08-26 — docs — выводы сессии 39da + человек обновил репо на ПК
 - Зачем: зафиксировать, что сделали, почему путались два дня, какие выводы по тестам (не домыслы).
