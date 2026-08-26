@@ -32,7 +32,7 @@
 | `vk-qa` | Проверить артефакты прогона (`qa.json`). |
 | `vk-fixer` | Только если в очереди `status: open`: починить код/контракт, не жечь refresh в цикле. |
 
-Скрипты — гейты (`scripts/doctor.py` и др.), не замена ролей (`run_pipeline.sh` не крутить вместо subagents).
+Скрипты — гейты (`scripts/doctor.py` и др.), не замена ролей в облаке (`run_pipeline.sh` / `run_once.py` не крутить вместо subagents). На ПК человека `python scripts/run_once.py` (проба) и `--live` (принять).
 
 ---
 
@@ -217,7 +217,7 @@
 ### Человек (live — только если сам решишь)
 
 1. Dry-run на ПК уже зелёный. **Не** второй doctor. **Не** облако.
-2. Реально принять 162 заявки: в том же ПК, новые флаги `APPROVE_ALLOW=yes` и `DRY_RUN=no`, новый `run_id`, снова fetch→decide→approve. Без этих двух флаг вместе — снова только проба.
+2. Реально принять заявки на ПК одной командой: `python scripts/run_once.py --live` (нужен `VK_GROUP_ID` и кэш `memory/site.env.local`). Без `--live` снова только проба. Cloud Director этот скрипт не использует.
 3. Облако d753 / 39da не трогать. Automation на облаке — error 5 может повториться.
 4. Ротированный refresh — в `memory/site.env.local` на ПК. Не печатать, не коммитить.
 

@@ -69,7 +69,25 @@ DRY_RUN=no
 Принять все заявки (policy approve_all).
 ```
 
-## Локальная проверка
+## Локальный запуск (ПК, одна команда)
+
+Сначала в окне должны быть `VK_GROUP_ID`, и кэш `memory/site.env.local` (после удачного doctor). Не `main`.
+
+Проба (никого не принимают):
+
+```powershell
+python scripts/run_once.py
+```
+
+Принять всех:
+
+```powershell
+python scripts/run_once.py --live
+```
+
+Cloud Agent / Automation по расписанию — отдельно; из‑за IP облако может снова дать error 5. Director в облаке по-прежнему гоняет роли, не этот скрипт.
+
+## Локальная проверка (по шагам)
 
 ```bash
 export VK_GROUP_ID=123456
@@ -81,11 +99,7 @@ export DRY_RUN=yes
 
 python3 -m pip install -r requirements.txt
 python3 scripts/doctor.py
-python3 scripts/start_run.py --run-id test-001
-python3 scripts/fetch_requests.py --run-dir memory/runs/test-001
-python3 scripts/decide.py --run-dir memory/runs/test-001
-python3 scripts/approve.py --run-dir memory/runs/test-001 --run-id test-001
-python3 scripts/validate_run.py --run-dir memory/runs/test-001
+python3 scripts/run_once.py
 ```
 
 ## Если doctor падает с error 5

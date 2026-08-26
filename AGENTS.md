@@ -21,7 +21,7 @@ doctor + start_run
 
 ## Что считать ошибкой
 
-- Parent сам делает работу роли вместо subagent.
+- `run_pipeline.sh` / `scripts/run_once.py` не крутить вместо subagents в Cloud Agent. `run_once.py` — только локальный ПК человека.
 - Следующий этап стартует без PASS gate предыдущего.
 - `approve` при `APPROVE_ALLOW=no` или `DRY_RUN=yes` — только dry-run, не live.
 - Secrets попали в handoff/commit/log.
