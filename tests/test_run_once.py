@@ -24,6 +24,15 @@ class LoadLocalEnvTests(unittest.TestCase):
         os.environ.pop("VK_GROUP_ID", None)
         os.environ.pop("VK_DEVICE_ID", None)
 
+    def test_reads_utf16_and_txt_suffix(self) -> None:
+        os.environ.pop("VK_GROUP_ID", None)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "local.env.txt"
+            path.write_text("VK_GROUP_ID=9,8,7\n", encoding="utf-16")
+            load_local_env(Path(tmp) / "local.env")
+        self.assertEqual(os.environ.get("VK_GROUP_ID"), "9,8,7")
+        os.environ.pop("VK_GROUP_ID", None)
+
 
 if __name__ == "__main__":
     unittest.main()

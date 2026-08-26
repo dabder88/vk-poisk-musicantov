@@ -20,25 +20,44 @@ sys.path.insert(0, str(ROOT))
 LOCAL_ENV = ROOT / "memory" / "local.env"
 
 
+def _read_env_text(path: Path) -> str:
+    data = path.read_bytes()
+    if data.startswith(b"\xff\xfe") or data.startswith(b"\xfe\xff"):
+        return data.decode("utf-16")
+    return data.decode("utf-8-sig")
+
+
 def load_local_env(path: Path = LOCAL_ENV) -> None:
     """Load gitignored memory/local.env into os.environ (do not overwrite set vars)."""
-    if not path.is_file():
+    candidates = [path]
+    txt = path.with_name(path.name + ".txt")
+    if txt not in candidates:
+        candidates.append(txt)
+    chosen = next((p for p in candidates if p.is_file()), None)
+    if chosen is None:
+        print(f"WARN no {path.name} (also tried {txt.name}) in memory/")
         return
     try:
-        text = path.read_text(encoding="utf-8")
+        text = _read_env_text(chosen)
     except OSError:
+        print(f"WARN could not read {chosen.name}")
         return
+    loaded: list[str] = []
     for raw in text.splitlines():
-        line = raw.strip()
+        line = raw.strip().lstrip("\ufeff")
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, _, value = line.partition("=")
-        key = key.strip()
+        key = key.strip().lstrip("\ufeff")
         value = value.strip()
         if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
             value = value[1:-1]
-        if key and not os.environ.get(key, "").strip():
+        if not key:
+            continue
+        loaded.append(key)
+        if not os.environ.get(key, "").strip() and value:
             os.environ[key] = value
+    print(f"OK loaded {chosen.name} keys={','.join(loaded) or '(none)'}")
 
 
 def run(script: str, extra: list[str]) -> None:
