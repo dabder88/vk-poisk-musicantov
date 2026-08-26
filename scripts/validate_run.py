@@ -53,6 +53,18 @@ def main() -> int:
         else:
             checks["approve_api"] = "PASS"
 
+    requests_path = run_dir / "requests.json"
+    if requests_path.exists():
+        req = json.loads(requests_path.read_text(encoding="utf-8"))
+        groups = req.get("groups") or []
+        if groups:
+            checks["groups"] = "PASS"
+        elif req.get("group_id"):
+            checks["groups"] = "PASS"
+        else:
+            checks["groups"] = "FAIL"
+            errors += 1
+
     report = {
         "status": "PASS" if errors == 0 else "FAIL",
         "checks": checks,

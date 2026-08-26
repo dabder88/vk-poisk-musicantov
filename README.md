@@ -9,16 +9,23 @@
 - Director + subagents в `agents/` и `.cursor/agents/`
 - Dry-run по умолчанию (безопасно)
 
-## Что нужно от вас (2 значения)
+## Что нужно от вас
 
 Добавьте в **Cursor Dashboard → Cloud Agents → Secrets**:
 
 | Secret | Что это |
 |--------|---------|
-| `VK_GROUP_ID` | Числовой ID группы (без минуса). Например, для `vk.com/club123456` → `123456` |
-| `VK_ACCESS_TOKEN` | **User token** администратора группы с правом `groups` (НЕ ключ сообщества из «Ключи доступа») |
+| `VK_GROUP_ID` | Одна группа (без минуса). Можно не задавать, если есть `VK_GROUP_IDS` |
+| `VK_GROUP_IDS` | Несколько пабликов: `111,222,333` |
+| `VK_REFRESH_TOKEN` | `refresh_token` из VK ID OAuth (для Cloud Agent) |
+| `VK_DEVICE_ID` | `device_id` из редиректа VK ID |
+| `VK_SERVICE_TOKEN` | сервисный ключ приложения (конфиденциальное приложение) |
 
-> Ключ из **Работа с API → Ключи доступа** не подходит — VK вернёт error 27.
+Опционально: `VK_CLIENT_ID` (по умолчанию `54693054`), `VK_ACCESS_TOKEN` (на облаке всё равно будет refresh).
+
+Несколько пабликов: в `VK_GROUP_IDS` перечислите ID через запятую. Один OAuth (`VK_REFRESH_TOKEN` + `VK_DEVICE_ID`) на все группы, где вы админ.
+
+> Не используйте ключ сообщества. Не вызывайте API облаком с access_token, полученным в браузере — будет error 5 (IP). Нужен refresh на VM.
 > Инструкция: `docs/how-to-get-vk-user-token.md`
 
 Опционально (можно позже):
@@ -66,7 +73,9 @@ DRY_RUN=no
 
 ```bash
 export VK_GROUP_ID=123456
-export VK_ACCESS_TOKEN=your_token
+export VK_REFRESH_TOKEN=your_refresh_token
+export VK_DEVICE_ID=your_device_id
+export VK_SERVICE_TOKEN=your_service_token
 export APPROVE_ALLOW=no
 export DRY_RUN=yes
 
@@ -78,6 +87,10 @@ python3 scripts/decide.py --run-dir memory/runs/test-001
 python3 scripts/approve.py --run-dir memory/runs/test-001 --run-id test-001
 python3 scripts/validate_run.py --run-dir memory/runs/test-001
 ```
+
+## Если doctor падает с error 5
+
+Access token привязан к другому IP. Положите `VK_REFRESH_TOKEN` и `VK_DEVICE_ID` в Secrets — Cloud Agent обновит токен на своей VM. См. `docs/how-to-get-vk-user-token.md`.
 
 ## Если doctor падает с error 27
 
