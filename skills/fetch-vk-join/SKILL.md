@@ -15,4 +15,4 @@ description: Fetch VK group join requests.
 
 `requests.json` with `groups[]` (`group_id`, `user_ids`) and total `count`.
 Failed groups keep `error_code` and empty `user_ids`; `partial=true` if any error.
-On error 5/1130: client retries the same token, then at most one extra refresh (`force=True`) and remaining groups. Do not loop refresh. Do not run doctor.
+On error 5/1130: client retries the same token, then at most one extra refresh (`force=True`) and **all** groups with the new token. Do not loop refresh. Do not run doctor.

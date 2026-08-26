@@ -99,7 +99,7 @@ refresh_token + device_id + client_id [+ service_token]
 
 Если VK **ротирует** `refresh_token`, новое значение есть только в `memory/site.env.local`. Человек должен скопировать его в Cursor Secret `VK_REFRESH_TOKEN` **с этой VM** до следующего Cloud Agent (новая машина не видит gitignored cache).
 
-При API error 5 / 1130 `groups.getRequests` повторяется 2–3 раза тем же токеном. Второй refresh — только если кэш пуст или retry не помог (не в цикле). Fetch не abort'ит весь run: пишет `requests.json` (partial при ошибках), один extra refresh, затем остальные группы. Sticky egress IP — инфра, не код.
+При API error 5 / 1130 `groups.getRequests` повторяется 2–3 раза тем же токеном. Второй refresh — только если кэш пуст или retry не помог (не в цикле). Fetch не abort'ит весь run: пишет `requests.json` (partial при ошибках), один extra refresh, затем **все** группы с новым токеном. Sticky egress IP — инфра, не код.
 
 ---
 

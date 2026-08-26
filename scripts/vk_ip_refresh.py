@@ -2,7 +2,7 @@
 
 Retry 5/1130 with the same token lives in VkClient.get_requests.
 This helper adds at most one force refresh per process, then re-runs
-remaining groups. Never loop refresh.
+all group_ids with the new token (not only IP-failed). Never loop refresh.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ class OneExtraRefresh:
 
         print(
             "WARN getRequests still error 5/1130 after retries; "
-            "one extra refresh then continue remaining groups (not a loop)"
+            "one extra refresh then retry all groups with the new token (not a loop)"
         )
         tokens = refresh_from_env(force=True)
         client.access_token = str(tokens["access_token"]).strip()
@@ -47,9 +47,10 @@ def run_per_group_with_one_extra_refresh(
     *,
     ip_from_result: Callable[[T], bool] | None = None,
 ) -> tuple[VkClient, dict[int, T | VkApiError]]:
-    """Call fn for each group; on IP failure, one extra refresh then retry remaining."""
+    """Call fn for each group; on IP failure, one extra refresh then retry all groups."""
     extra = OneExtraRefresh()
-    remaining = [int(gid) for gid in group_ids]
+    original = [int(gid) for gid in group_ids]
+    remaining = list(original)
     latest: dict[int, T | VkApiError] = {}
     while remaining:
         still_ip: list[int] = []
@@ -65,7 +66,7 @@ def run_per_group_with_one_extra_refresh(
             if ip_from_result and ip_from_result(result):
                 still_ip.append(gid)
         if still_ip and extra.maybe_apply(client):
-            remaining = still_ip
+            remaining = list(original)
             continue
         break
     return client, latest

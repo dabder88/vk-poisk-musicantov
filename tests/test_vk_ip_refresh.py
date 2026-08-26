@@ -78,11 +78,44 @@ class OneExtraRefreshTests(unittest.TestCase):
 
         self.assertEqual(refresh_calls, [True])
         self.assertEqual(client.access_token, "rotated-host")
-        self.assertEqual(latest[11]["user_ids"], [101, 102])
+        # After extra refresh, previously-OK group 11 is re-fetched with the new token.
+        self.assertEqual(latest[11]["user_ids"], [11])
         self.assertEqual(latest[22]["user_ids"], [22])
         self.assertEqual(latest[33]["user_ids"], [33])
         self.assertGreaterEqual(call_tokens.count("cached"), 1 + 3 + 3)
+        self.assertGreaterEqual(call_tokens.count("rotated-host"), 3)
         self.assertIn("rotated-host", call_tokens)
+
+    def test_extra_refresh_retries_all_groups_not_only_still_ip(self) -> None:
+        client = VkClient(access_token="cached", group_id=11)
+        groups_after_refresh: list[int] = []
+        refresh_calls: list[bool] = []
+
+        def tracking_call(self: VkClient, method: str, **params):
+            gid = int(params["group_id"])
+            if self.access_token == "rotated-host":
+                groups_after_refresh.append(gid)
+            return _ip_call(self, method, **params)
+
+        def fake_refresh(*, force: bool = False):
+            refresh_calls.append(force)
+            return {"access_token": "rotated-host"}
+
+        def fetch_one(bound: VkClient, gid: int) -> list[int]:
+            return bound.with_group(gid).get_requests(count=1)
+
+        with patch("scripts.vk_oauth.refresh_from_env", side_effect=fake_refresh):
+            with patch.object(VkClient, "call", tracking_call):
+                with patch("scripts.vk_client.time.sleep", return_value=None):
+                    _client, latest = run_per_group_with_one_extra_refresh(
+                        client, [11, 22, 33], fetch_one
+                    )
+
+        self.assertEqual(refresh_calls, [True])
+        self.assertEqual(groups_after_refresh, [11, 22, 33])
+        self.assertEqual(latest[11], [11])
+        self.assertEqual(latest[22], [22])
+        self.assertEqual(latest[33], [33])
 
     def test_no_second_extra_refresh_if_still_ip(self) -> None:
         client = VkClient(access_token="cached", group_id=11)
@@ -175,9 +208,9 @@ class FetchWritesPartialTests(unittest.TestCase):
             payload = json.loads((run_dir / "requests.json").read_text(encoding="utf-8"))
         self.assertEqual(rc, 0)
         self.assertEqual(refresh_calls, [True])
-        self.assertEqual(payload["count"], 4)
+        self.assertEqual(payload["count"], 3)
         self.assertFalse(payload["partial"])
-        self.assertEqual(payload["groups"][0]["user_ids"], [101, 102])
+        self.assertEqual(payload["groups"][0]["user_ids"], [11])
         self.assertEqual(payload["groups"][1]["user_ids"], [22])
         self.assertEqual(payload["groups"][2]["user_ids"], [33])
 
