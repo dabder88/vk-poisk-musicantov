@@ -124,3 +124,41 @@ category: api
 - `fetch_requests.py` always writes `requests.json`; failed groups get `error_code` + empty `user_ids`; `partial=true` if any error. Does not abort before write.
 - Extra refresh is not called on cache-hit success. Not a second refresh on the first error 5.
 - Infra: non-sticky egress can still yield error 5 after cache reuse; next vk-fetch may use one extra refresh without re-running doctor.
+
+## INC-20260826-0552-doctor-error-5-new-vm
+status: open
+run_date: 2026-08-26
+role: vk-director
+run_id: none
+severity: blocker
+category: api
+
+### What went wrong
+- New VM, no `memory/site.env.local` at start. Dashboard secrets present: VK_GROUP_ID (3 ids), VK_REFRESH_TOKEN, VK_DEVICE_ID, VK_SERVICE_TOKEN. APPROVE_ALLOW absent (default no). DRY_RUN absent (default yes).
+- One `python3 scripts/doctor.py` (no loop): VK ID refresh on this host OK (`user_id=4253689`, `scope=groups`). Hint: refresh may have rotated; copy from gitignored `memory/site.env.local` into Dashboard before the next VM (file not printed, not committed).
+- Then error 5 on some groups → same-token retries → **one** extra refresh (as designed) → still error 5 on `37759698` and `37636297`. Group `12830069` OK (`sample=1`).
+- Doctor FAIL errors=2. start_run / vk-fetch / vk-decide / vk-approve not started (doctor gate FAIL).
+- Not `invalid_grant`. Token cache file now present (0600, gitignored).
+
+### How the agent recovered this run
+- Did not re-run doctor.
+- Did not call `refresh force` again.
+- Did not enable live approve.
+- Secrets not logged.
+
+### Durable fix needed before next run
+- Do not loop doctor or force a third refresh on this VM (would burn Dashboard `VK_REFRESH_TOKEN`).
+- Investigate whether after extra refresh doctor/fetch should retry **all** groups with the new token (not only remaining IP-failed), still at most one extra refresh.
+- Infra: non-sticky Cloud Agent egress IP; error 5/1130 can remain after extra refresh.
+- Human: if VK rotated refresh, copy `VK_REFRESH_TOKEN` from this VM `memory/site.env.local` into Dashboard before the next Cloud Agent VM.
+
+### Suggested files to inspect/change
+- `scripts/vk_ip_refresh.py`
+- `scripts/doctor.py`
+- `scripts/fetch_requests.py`
+
+### Secrets
+- none recorded
+
+### Fixer resolution
+- pending
