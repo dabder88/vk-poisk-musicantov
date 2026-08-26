@@ -28,8 +28,11 @@ doctor + start_run
 
 ## Canonical paths
 
+Перед pipeline прочитай снимок в `docs/vk-join-session-status.md` (этап, что работает, следующий шаг). В конце сессии **обнови** этот файл.
+
 | Artifact | Path |
 |----------|------|
+| Session status (обновлять каждую сессию) | `docs/vk-join-session-status.md` |
 | Research | `docs/vk-closed-group-join-requests.md` |
 | Policy | `shared/approve-policy.md` |
 | Agents source | `agents/` |
