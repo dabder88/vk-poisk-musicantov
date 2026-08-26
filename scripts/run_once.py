@@ -35,12 +35,19 @@ def main() -> int:
     parser.add_argument(
         "--count",
         type=int,
-        default=1000,
-        help="Max getRequests per group (default 1000)",
+        default=200,
+        help="Max getRequests per group (VK max 200)",
     )
     args = parser.parse_args()
 
     os.chdir(ROOT)
+
+    if args.count > 200:
+        print("WARN VK getRequests count max is 200; using 200")
+        args.count = 200
+    if args.count < 1:
+        print("ERROR --count must be 1..200")
+        return 1
 
     if args.live:
         os.environ["APPROVE_ALLOW"] = "yes"

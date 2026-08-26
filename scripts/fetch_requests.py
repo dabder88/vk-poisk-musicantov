@@ -70,6 +70,13 @@ def main() -> int:
     parser.add_argument("--count", type=int, default=100)
     args = parser.parse_args()
 
+    if args.count > 200:
+        print("WARN VK getRequests count max is 200; using 200")
+        args.count = 200
+    if args.count < 1:
+        print("ERROR --count must be 1..200")
+        return 1
+
     run_dir = Path(args.run_dir)
     if not run_dir.is_absolute():
         run_dir = ROOT / run_dir
