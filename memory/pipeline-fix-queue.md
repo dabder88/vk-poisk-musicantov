@@ -126,7 +126,7 @@ category: api
 - Infra: non-sticky egress can still yield error 5 after cache reuse; next vk-fetch may use one extra refresh without re-running doctor.
 
 ## INC-20260826-0552-doctor-error-5-new-vm
-status: open
+status: fixed
 run_date: 2026-08-26
 role: vk-director
 run_id: none
@@ -148,7 +148,7 @@ category: api
 
 ### Durable fix needed before next run
 - Do not loop doctor or force a third refresh on this VM (would burn Dashboard `VK_REFRESH_TOKEN`).
-- Investigate whether after extra refresh doctor/fetch should retry **all** groups with the new token (not only remaining IP-failed), still at most one extra refresh.
+- After extra refresh, retry **all** groups with the new token (not only remaining IP-failed), still at most one extra refresh.
 - Infra: non-sticky Cloud Agent egress IP; error 5/1130 can remain after extra refresh.
 - Human: if VK rotated refresh, copy `VK_REFRESH_TOKEN` from this VM `memory/site.env.local` into Dashboard before the next Cloud Agent VM.
 
@@ -161,4 +161,10 @@ category: api
 - none recorded
 
 ### Fixer resolution
-- pending
+- status: fixed (code). Sticky egress remains infra; this VM still cannot PASS doctor without another force refresh.
+- After one extra refresh, `run_per_group_with_one_extra_refresh` now retries **all** original `group_ids` with the new token (not only `still_ip`). Still at most one extra refresh per process.
+- Cache reuse unchanged: `refresh_from_env()` without `force` uses `memory/site.env.local`; extra `force=True` only after getRequests IP retries fail.
+- Tests (mock HTTP, no live OAuth): extra refresh re-probes every group; cache-hit success does not refresh; second extra refresh is a no-op.
+- Fixer did **not** run `python3 scripts/doctor.py` (would extra-refresh on error 5). Did **not** call `refresh_from_env(force=True)`.
+- Cache-only probe (VkClient from cache, no OAuth, no extra refresh): cache exists mode 0600; `groups.getRequests` error 5 on all 3 group ids (`ok=0/3`). Host-bound access_token no longer matches current egress IP.
+- Director: **do not** re-run `doctor.py` on this VM (error 5 → another force refresh). Live approve stays off. Before next VM: copy rotated `VK_REFRESH_TOKEN` from gitignored `memory/site.env.local` into Dashboard (do not print/commit the file).
