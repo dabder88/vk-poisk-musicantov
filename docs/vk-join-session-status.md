@@ -105,17 +105,17 @@
 | Поле | Значение |
 |------|----------|
 | Обновлено | 2026-08-26 |
-| Этап | **ПК: doctor PASS** по трём группам. Следующий шаг — dry-run pipeline **в том же окне PowerShell** (fetch→decide→approve dry-run). Live выкл. Облако не трогать. |
+| Этап | **ПК: полный dry-run PASS.** `run_id=R20260826-pc`, 162 заявки, никого не приняли. Live выкл. Облако не трогать. |
 | Цель продукта | По расписанию принимать заявки в закрытые группы ВК (`approve_all`). |
-| Где мы сейчас | Человек на ПК: refresh OK `user_id=4253689` `scope=groups`; getRequests OK все три id (`sample=1`). Облако d753 по-прежнему FAIL (error 5). |
+| Где мы сейчас | ПК: fetch 71+29+62=162, decide 162, approve 162 dry_run, qa PASS. Live не было. Облако d753 по-прежнему FAIL (error 5). |
 | Последний live VK | Нет. |
-| Последний успешный полный dry-run | 2026-08-25, `run_id=R20260825-1552` (облако): 159 заявок, qa PASS, approved=0. Полный dry-run на ПК ещё не гоняли. |
+| Последний успешный полный dry-run | 2026-08-26, `run_id=R20260826-pc`, **ПК**: 71+29+62=162, qa PASS, approved=0. Раньше: 2026-08-25 `R20260825-1552` облако, 159. |
 | Последняя сессия (облако) | 2026-08-26 `cursor/vk-join-dryrun-new-vm-d753`: doctor FAIL error 5. INC-1106 `needs-human`. |
 | Open incidents | Нет `status: open`. Needs-human: INC-1106 (облако IP), INC-0836 (VM 39da `invalid_grant`). |
 | Код брать с | Ветка **с кэшем**, не `main`. `cursor/vk-join-dryrun-new-vm-d753`. |
 | Облако d753 / 39da | **Не** `doctor.py`, **не** `refresh force`. |
 | Паблики | `VK_GROUP_ID` CSV: `37759698`,`12830069`,`37636297`. `VK_GROUP_IDS` не задан. |
-| ПК человека | Doctor PASS. `APPROVE_ALLOW=no` `DRY_RUN=yes`. Doctor повторно не крутить. Дальше start_run+fetch+decide+approve+validate в том же окне. |
+| ПК человека | Полный dry-run PASS `R20260826-pc`. `APPROVE_ALLOW=no` `DRY_RUN=yes`. Doctor/refresh повторно не крутить. Live только если человек явно включит оба флага. |
 
 ---
 
@@ -176,7 +176,7 @@
 | Кэш после refresh (d753) | `memory/site.env.local` есть, mode 0600, gitignored |
 | getRequests одна группа на d753 | `37636297` sample=1 |
 | VM 39da (2026-08-26) | refresh **не** обменялся: `invalid_grant` (исторически) |
-| Полный dry-run pipeline (старая VM) | R20260825-1552: fetch 70+28+61=159, decide 159, approve 159 dry_run, qa PASS |
+| Полный dry-run pipeline **на ПК** | `R20260826-pc`: fetch 71+29+62=162, decide 162, approve 162 dry_run, qa PASS, approved=0 |
 | Multi-group parse + скрипты | юнит-тесты `tests/test_group_ids.py` и др. |
 | Кэш / extra refresh / partial fetch | mock-тесты `tests/test_vk_oauth.py`, `tests/test_vk_ip_refresh.py` |
 
@@ -189,8 +189,8 @@
 | Doctor PASS по **всем трём** группам на **этой** VM (d753) | Нет: extra refresh, затем error 5 на `37759698` и `12830069` |
 | Doctor PASS по 3 группам на VM 2af9 (2026-08-26) | Нет: refresh OK, затем error 5 после extra refresh |
 | Doctor PASS на VM 39da | Нет: `invalid_grant`, getRequests не было |
-| Полный pipeline (fetch→qa) **на ПК** | Ещё не гоняли. Doctor PASS есть. |
-| Live `groups.approveRequest` | Намеренно выкл. Не включать, пока нет qa PASS dry-run **на ПК** |
+| Полный pipeline (fetch→qa) **на ПК** | Да: `R20260826-pc` qa PASS, approve=dry_run, approved=0 |
+| Live `groups.approveRequest` | Намеренно выкл. Можно включать только после этого PASS, явно `APPROVE_ALLOW=yes` и `DRY_RUN=no` на ПК |
 | Sticky egress IP Cloud Agent | Нет: повтор 26 авг на двух новых VM (2af9 и d753) |
 | Автокопирование ротированного refresh в Dashboard | Невозможно из агента. Нужен человек |
 
@@ -214,22 +214,22 @@
 
 ## Следующий этап (человек + следующий агент)
 
-### Человек (dry-run на ПК, doctor уже PASS)
+### Человек (live — только если сам решишь)
 
-1. **Не** закрывать окно PowerShell. **Не** второй `doctor.py`.
-2. В том же окне: `start_run` → `fetch_requests` → `decide` → `approve` → `validate_run`. `APPROVE_ALLOW=no`, `DRY_RUN=yes` — никого реально не принимают.
-3. Облако d753 / 39da не трогать. Новое облако не поднимать.
-4. Если снова понадобится облако: ротированный `VK_REFRESH_TOKEN` теперь в `memory/site.env.local` **на ПК** (обмен на ПК удался). Файл не печатать и не коммитить.
+1. Dry-run на ПК уже зелёный. **Не** второй doctor. **Не** облако.
+2. Реально принять 162 заявки: в том же ПК, новые флаги `APPROVE_ALLOW=yes` и `DRY_RUN=no`, новый `run_id`, снова fetch→decide→approve. Без этих двух флаг вместе — снова только проба.
+3. Облако d753 / 39da не трогать. Automation на облаке — error 5 может повториться.
+4. Ротированный refresh — в `memory/site.env.local` на ПК. Не печатать, не коммитить.
 
 ### Следующий агент
 
-Сначала целиком этот файл. Не doctor на облаке. На ПК doctor уже PASS — следующий этап fetch/decide/approve dry-run на той же машине.
+Сначала этот файл. На ПК dry-run `R20260826-pc` PASS. Live не выдумывать. Не doctor на облаке.
 
 ---
 
 ## Какой результат хотим
 
-**Ближайший:** на ПК dry-run pipeline (fetch→qa). Doctor уже зелёный. Live не включать. Облако не трогать.
+**Ближайший:** live на ПК только если человек явно включит `APPROVE_ALLOW=yes` и `DRY_RUN=no`. Иначе стоп: dry-run уже зелёный.
 
 **Дальше:** live только после зелёного dry-run на той машине, где вызывают API; Automation на облаке — только понимая, что error 5 может повториться.
 
@@ -240,6 +240,14 @@
 ---
 
 ## Журнал сессий
+
+### 2026-08-26 — R20260826-pc — ПК, полный dry-run PASS
+- Человек, PowerShell. Кэш reuse, без второго refresh. `APPROVE_ALLOW=no` `DRY_RUN=yes`.
+- fetch: 37759698=71, 12830069=29, 37636297=62, всего 162, errors=0.
+- decide: to_approve=162 skip=0 mode=approve_all.
+- approve: 162 dry_run, approved=0.
+- qa: PASS errors=0.
+- Live не было. Облако не трогали.
 
 ### 2026-08-26 — run_id none — ПК, doctor PASS по 3 группам
 - Человек, PowerShell, `F:\ProjectsAI\vk-poisk-musicantov`. Длины refresh=262 device_id=86. Не облако.
