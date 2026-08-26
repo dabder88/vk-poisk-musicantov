@@ -105,17 +105,17 @@
 | Поле | Значение |
 |------|----------|
 | Обновлено | 2026-08-26 |
-| Этап | Облако d753: doctor FAIL (error 5 после extra refresh). Следующий шаг — **dry-run на ПК**, не на этой VM и не новое облако «на всякий случай». Live выкл. |
+| Этап | **ПК: doctor PASS** по трём группам. Следующий шаг — dry-run pipeline **в том же окне PowerShell** (fetch→decide→approve dry-run). Live выкл. Облако не трогать. |
 | Цель продукта | По расписанию принимать заявки в закрытые группы ВК (`approve_all`). |
-| Где мы сейчас | Сессия 9 (`d753`): refresh OK, getRequests не по всем трём группам. `run_id` нет (gate doctor). Fetch/decide/approve не было. |
-| Последний live VK | Нет. Approve не запускался (`APPROVE_ALLOW`/`DRY_RUN` absent → только dry-run, если бы дошли). |
-| Последний успешный полный dry-run | 2026-08-25, `run_id=R20260825-1552`, **другая** Cloud VM: 159 заявок, qa PASS, approved=0. |
-| Последняя сессия (эта VM) | 2026-08-26 `cursor/vk-join-dryrun-new-vm-d753`: один doctor FAIL error 5 после extra refresh. INC-1106 `needs-human`. Эту VM больше не использовать для doctor. |
-| Open incidents | Нет `status: open`. Needs-human: INC-1106 (error 5 / IP, эта VM), INC-0836 (`invalid_grant`, VM 39da). |
-| Код брать с | Ветка **с кэшем**, не `main`. База: `cursor/vk-join-dryrun-new-vm-2af9` → `…-39da`. Эта сессия: `cursor/vk-join-dryrun-new-vm-d753`. |
-| Эту VM | **Не** второй `doctor.py`, **не** `refresh force`. |
+| Где мы сейчас | Человек на ПК: refresh OK `user_id=4253689` `scope=groups`; getRequests OK все три id (`sample=1`). Облако d753 по-прежнему FAIL (error 5). |
+| Последний live VK | Нет. |
+| Последний успешный полный dry-run | 2026-08-25, `run_id=R20260825-1552` (облако): 159 заявок, qa PASS, approved=0. Полный dry-run на ПК ещё не гоняли. |
+| Последняя сессия (облако) | 2026-08-26 `cursor/vk-join-dryrun-new-vm-d753`: doctor FAIL error 5. INC-1106 `needs-human`. |
+| Open incidents | Нет `status: open`. Needs-human: INC-1106 (облако IP), INC-0836 (VM 39da `invalid_grant`). |
+| Код брать с | Ветка **с кэшем**, не `main`. `cursor/vk-join-dryrun-new-vm-d753`. |
+| Облако d753 / 39da | **Не** `doctor.py`, **не** `refresh force`. |
 | Паблики | `VK_GROUP_ID` CSV: `37759698`,`12830069`,`37636297`. `VK_GROUP_IDS` не задан. |
-| ПК человека | Репо на ветке с кэшем. Dashboard refresh **живой** (обмен на d753 удался). Дальше: один doctor и pipeline **на ПК**. |
+| ПК человека | Doctor PASS. `APPROVE_ALLOW=no` `DRY_RUN=yes`. Doctor повторно не крутить. Дальше start_run+fetch+decide+approve+validate в том же окне. |
 
 ---
 
@@ -172,7 +172,7 @@
 
 | Что | Доказательство |
 |-----|----------------|
-| Обмен Dashboard `VK_REFRESH_TOKEN` на этой VM (d753) | refresh OK, `user_id=4253689`, `scope=groups` |
+| Doctor PASS по 3 группам **на ПК** (2026-08-26) | refresh OK `user_id=4253689` `scope=groups`; getRequests `37759698`/`12830069`/`37636297` sample=1; `SUMMARY errors=0` |
 | Кэш после refresh (d753) | `memory/site.env.local` есть, mode 0600, gitignored |
 | getRequests одна группа на d753 | `37636297` sample=1 |
 | VM 39da (2026-08-26) | refresh **не** обменялся: `invalid_grant` (исторически) |
@@ -189,7 +189,7 @@
 | Doctor PASS по **всем трём** группам на **этой** VM (d753) | Нет: extra refresh, затем error 5 на `37759698` и `12830069` |
 | Doctor PASS по 3 группам на VM 2af9 (2026-08-26) | Нет: refresh OK, затем error 5 после extra refresh |
 | Doctor PASS на VM 39da | Нет: `invalid_grant`, getRequests не было |
-| Полный pipeline (fetch→qa) на d753 | Не запускался (gate doctor). `run_id` нет |
+| Полный pipeline (fetch→qa) **на ПК** | Ещё не гоняли. Doctor PASS есть. |
 | Live `groups.approveRequest` | Намеренно выкл. Не включать, пока нет qa PASS dry-run **на ПК** |
 | Sticky egress IP Cloud Agent | Нет: повтор 26 авг на двух новых VM (2af9 и d753) |
 | Автокопирование ротированного refresh в Dashboard | Невозможно из агента. Нужен человек |
@@ -214,25 +214,22 @@
 
 ## Следующий этап (человек + следующий агент)
 
-### Человек (dry-run на ПК)
+### Человек (dry-run на ПК, doctor уже PASS)
 
-1. Ветка с кэшем (`cursor/vk-join-dryrun-new-vm-d753` / `…-39da` / `…-2af9`), не `main`.
-2. **Не** новый `start`/`finish`, пока жив кэш на ПК или пока не нужен новый выпуск. Dashboard refresh на d753 обменялся — для **облака** он уже ротирован в `memory/site.env.local` этой VM.
-3. Один `python3 scripts/doctor.py` **на ПК**. PASS = refresh на этом хосте + getRequests по трём группам. Потом Director: `start_run` + роли. Live не включать (`APPROVE_ALLOW` не yes / `DRY_RUN` не no).
-4. Cloud VM d753 и 39da для doctor **не** использовать. Новое облако «на всякий случай» — нет.
-5. Если снова понадобится облако: скопировать ротированный `VK_REFRESH_TOKEN` из `memory/site.env.local` **живой** VM d753 (обмен удался) в Dashboard. С 39da копировать нельзя. Файл не печатать.
-
-Копировать refresh можно только с машины, где обмен **только что** удался. С мёртвых VM / после `invalid_grant` — нельзя.
+1. **Не** закрывать окно PowerShell. **Не** второй `doctor.py`.
+2. В том же окне: `start_run` → `fetch_requests` → `decide` → `approve` → `validate_run`. `APPROVE_ALLOW=no`, `DRY_RUN=yes` — никого реально не принимают.
+3. Облако d753 / 39da не трогать. Новое облако не поднимать.
+4. Если снова понадобится облако: ротированный `VK_REFRESH_TOKEN` теперь в `memory/site.env.local` **на ПК** (обмен на ПК удался). Файл не печатать и не коммитить.
 
 ### Следующий агент
 
-Сначала целиком этот файл. Не выдумывать refresh/кэш. Не doctor на d753 и не на 39da. Не второе облако ради IP. Если человек на ПК — один doctor **там**, где будут вызовы API.
+Сначала целиком этот файл. Не doctor на облаке. На ПК doctor уже PASS — следующий этап fetch/decide/approve dry-run на той же машине.
 
 ---
 
 ## Какой результат хотим
 
-**Ближайший:** на ПК (ветка с кэшем) один doctor, dry-run pipeline. Облако d753 и 39da не трогать. Live не включать.
+**Ближайший:** на ПК dry-run pipeline (fetch→qa). Doctor уже зелёный. Live не включать. Облако не трогать.
 
 **Дальше:** live только после зелёного dry-run на той машине, где вызывают API; Automation на облаке — только понимая, что error 5 может повториться.
 
@@ -243,6 +240,12 @@
 ---
 
 ## Журнал сессий
+
+### 2026-08-26 — run_id none — ПК, doctor PASS по 3 группам
+- Человек, PowerShell, `F:\ProjectsAI\vk-poisk-musicantov`. Длины refresh=262 device_id=86. Не облако.
+- Один `python scripts/doctor.py`: refresh OK `user_id=4253689` `scope=groups`; getRequests OK `37759698`/`12830069`/`37636297` sample=1; `SUMMARY errors=0`.
+- Fetch/decide/approve на ПК ещё нет. Live нет. `APPROVE_ALLOW=no` `DRY_RUN=yes`.
+- Hint: не второй doctor; то же окно; дальше start_run+pipeline dry-run.
 
 ### 2026-08-26 — run_id none — VM d753, refresh OK, doctor FAIL error 5 после extra refresh
 - Агент / ветка: Сессия 9 `bc-…d753`, `cursor/vk-join-dryrun-new-vm-d753` от `…-39da`. Не VM 39da.
