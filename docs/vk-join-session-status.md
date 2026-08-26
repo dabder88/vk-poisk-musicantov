@@ -36,6 +36,28 @@
 
 ---
 
+## Какие паблики и как заданы в env
+
+Принимаем заявки в **три** закрытых сообщества (числовые id **без минуса**):
+
+| group_id | Порядок в CSV |
+|----------|----------------|
+| `37759698` | 1 |
+| `12830069` | 2 |
+| `37636297` | 3 |
+
+**Как сейчас в Cursor Dashboard (проверено 2026-08-26):**
+
+- Имя секрета: `VK_GROUP_ID` (не `VK_GROUP_IDS`).
+- Формат: **один** CSV из трёх id, разделитель запятая, пробелов нет, порядок как в таблице (`37759698` затем `12830069` затем `37636297`).
+- `VK_GROUP_IDS` **не задан** (`ABSENT`). Дублировать список туда не нужно.
+
+Парсер `scripts/group_ids.py` читает оба имени: CSV / пробелы / `;`, минус в начале снимает. Список можно держать в `VK_GROUP_ID` **или** в `VK_GROUP_IDS` (или оба, unique с сохранением порядка). В `AGENTS.md` / README для нескольких пабликов часто пишут `VK_GROUP_IDS` — это рекомендация, не требование. Боевой конфиг уже в `VK_GROUP_ID`.
+
+Один OAuth (refresh на хосте) на все три группы, где пользователь токена админ.
+
+---
+
 ## Позиция ТП ВК (error 5 / другой IP)
 
 Цитата ответа поддержки ВК (запрос про `User authorization failed: access_token was given to another IP address`, зафиксировано в этом файле 2026-08-26):
@@ -92,13 +114,14 @@
 | Open incidents | Нет (все `status: fixed`). Infra error 5 может повториться. |
 | Код брать с | Ветка **с кэшем**, не голый `origin/main`. Актуальная: `cursor/vk-join-dryrun-new-vm-2af9` (поверх `5563` + retry всех групп после extra refresh). Коммиты-ориентиры: `20fcc46` кэш, `3938aa8` fetch partial + extra refresh, `ac813db` retry all groups. |
 | Эту VM | **Не** крутить `doctor.py` повторно и **не** `refresh force`. Кэш уже после extra refresh; ещё один exchange может сжечь Dashboard token. |
+| Паблики | Три группы в секрете `VK_GROUP_ID` (CSV без пробелов; порядок `37759698`, `12830069`, `37636297`). `VK_GROUP_IDS` не задан. |
 
 ---
 
 ## Что уже сделано (код и контракты)
 
 - Pipeline ролей: Director только `doctor` + `start_run`, дальше subagents `vk-fetch` → `vk-decide` → `vk-approve` → `vk-qa` → `vk-fixer` при `status: open`.
-- Несколько групп: `VK_GROUP_ID` и/или `VK_GROUP_IDS`. Боевые id: `37759698`, `12830069`, `37636297`.
+- Три паблика в секрете `VK_GROUP_ID` одним CSV без пробелов, порядок `37759698` затем `12830069` затем `37636297`. `VK_GROUP_IDS` пустой. Парсер принимает CSV в `VK_GROUP_ID` или в `VK_GROUP_IDS`.
 - VK ID: обмен `refresh_token` **на хосте агента** (`scripts/vk_oauth.py`), иначе error 5 (IP).
 - Кэш на VM: gitignored `memory/site.env.local` (0600). `refresh_from_env()` без `force` — не больше одного HTTP exchange, дальше reuse.
 - Error 5/1130: retry `getRequests` тем же токеном, затем **один** extra refresh (`force=True`), затем снова **все** группы (не только упавшие). Не цикл refresh.
@@ -196,6 +219,16 @@
 ---
 
 ## Журнал сессий
+
+### 2026-08-26 — docs — три паблика в VK_GROUP_ID
+
+- Зафиксировано: три group_id `37759698`, `12830069`, `37636297`.
+- В Dashboard они лежат в `VK_GROUP_ID` как CSV без пробелов (не в `VK_GROUP_IDS`). Парсер это умеет.
+
+### 2026-08-26 — docs — миссия проекта + цитата ТП ВК
+
+- В `docs/vk-join-session-status.md`: зачем агенты, итоговая задача, проблема (заявки + IP/token).
+- Полная цитата ТП ВК про error 5 (токен с одного IP, вызов с другого; refresh там, где вызываете API). Дубль в `docs/how-to-get-vk-user-token.md`.
 
 ### 2026-08-26 — run_id none — новая VM, секрет подхватился, doctor FAIL (error 5)
 
