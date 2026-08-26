@@ -87,6 +87,10 @@ python3 scripts/get_vk_token.py finish --redirect-url 'ВСТАВЬТЕ_URL'
 
 Скрипт напечатает значения для Dashboard. **Не коммитьте их.**
 
+**Пара обязательна:** в Dashboard кладите `VK_REFRESH_TOKEN` и `VK_DEVICE_ID` **с одного** `finish`. Refresh без своего `device_id` → `invalid_grant`. Не вставляйте `access_token` / `id_token` в секрет refresh. После `finish` не вызывайте `refresh` на ПК — проверка сжигает одноразовый секрет.
+
+Не копируйте `VK_REFRESH_TOKEN` из `memory/site.env.local` **уже мёртвой** Cloud VM: файл мог содержать уже использованный refresh, а `device_id` в кэше **нет** (он только в Dashboard). Если Cloud Agent уже ответил `invalid_grant` — только новый `start`+`finish` на ПК, не «ещё раз скопировать со старой машины».
+
 ---
 
 ## Шаг 2. Cloud Agent
