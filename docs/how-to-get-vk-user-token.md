@@ -17,9 +17,15 @@ error 5 / subcode 1130
 access_token was given to another ip address
 ```
 
-**Ответ ТП VK (август 2026):** не использовать клиентский access_token с сервера. Перед вызовом API **обновить access_token через refresh_token там, где будете вызывать методы** — то есть на Cloud Agent.
+**Ответ ТП VK (август 2026), формулировка из тикета:**
 
-Pipeline делает это в `VkClient.from_env()` через `scripts/vk_oauth.py`.
+> Ошибка «User authorization failed: access_token was given to another IP address» возникает, если IP-адрес, с которого выполняется запрос, отличается от IP-адреса, с которого был получен токен.
+>
+> Например, это может произойти, если вы получаете клиентский токен, но используете его для вызова метода с сервера.
+>
+> Ошибку можно исправить, если перед вызовом метода обновить access token, используя refresh token в том месте, где планируете его использовать.
+
+Для Cloud Agent это значит: обмен refresh → access **на VM агента**, не клиентский токен с ПК. Pipeline: `VkClient.from_env()` → `scripts/vk_oauth.py`. Сводка для агентов: `docs/vk-join-session-status.md`.
 
 ---
 
