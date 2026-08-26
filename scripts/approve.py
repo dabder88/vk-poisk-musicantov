@@ -14,6 +14,30 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from scripts.vk_client import VkApiError, VkClient  # noqa: E402
+from scripts.vk_ip_refresh import OneExtraRefresh, call_recovering_ip  # noqa: E402
+
+
+def approval_targets(decision: dict) -> list[dict]:
+    raw = decision.get("to_approve", [])
+    targets: list[dict] = []
+    fallback_gid = 0
+    groups = decision.get("groups") or []
+    if len(groups) == 1:
+        fallback_gid = int(groups[0].get("group_id") or 0)
+
+    for item in raw:
+        if isinstance(item, dict):
+            targets.append(
+                {
+                    "group_id": int(item["group_id"]),
+                    "user_id": int(item["user_id"]),
+                }
+            )
+        else:
+            if not fallback_gid:
+                raise ValueError("legacy to_approve[] needs groups[0].group_id")
+            targets.append({"group_id": fallback_gid, "user_id": int(item)})
+    return targets
 
 
 def append_ledger(entries: list[dict]) -> None:
@@ -24,8 +48,8 @@ def append_ledger(entries: list[dict]) -> None:
     lines = []
     for entry in entries:
         lines.append(
-            f"- {entry['ts']} run={entry['run_id']} user_id={entry['user_id']} "
-            f"status={entry['status']}"
+            f"- {entry['ts']} run={entry['run_id']} group_id={entry.get('group_id', '-')} "
+            f"user_id={entry['user_id']} status={entry['status']}"
         )
     with ledger_path.open("a", encoding="utf-8") as fh:
         fh.write("\n".join(lines) + "\n")
@@ -47,7 +71,7 @@ def main() -> int:
         return 1
 
     decision = json.loads(decision_path.read_text(encoding="utf-8"))
-    to_approve = [int(x) for x in decision.get("to_approve", [])]
+    targets = approval_targets(decision)
 
     approve_allow = os.environ.get("APPROVE_ALLOW", "no").strip().lower()
     dry_run = os.environ.get("DRY_RUN", "yes").strip().lower()
@@ -56,10 +80,11 @@ def main() -> int:
     now = datetime.now(timezone.utc).isoformat()
 
     if approve_allow != "yes" or dry_run == "yes":
-        for user_id in to_approve:
+        for target in targets:
             results.append(
                 {
-                    "user_id": user_id,
+                    "group_id": target["group_id"],
+                    "user_id": target["user_id"],
                     "status": "dry_run",
                     "ts": now,
                     "run_id": args.run_id,
@@ -80,16 +105,26 @@ def main() -> int:
             + "\n",
             encoding="utf-8",
         )
-        print(f"OK dry-run: would approve {len(to_approve)} users -> {out_path}")
+        print(f"OK dry-run: would approve {len(targets)} users -> {out_path}")
         return 0
 
-    client = VkClient.from_env()
+    base = VkClient.from_env()
     errors = 0
+    extra = OneExtraRefresh()
 
-    for user_id in to_approve:
-        entry = {"user_id": user_id, "ts": now, "run_id": args.run_id}
+    for target in targets:
+        entry = {
+            "group_id": target["group_id"],
+            "user_id": target["user_id"],
+            "ts": now,
+            "run_id": args.run_id,
+        }
         try:
-            ok = client.approve_request(user_id)
+            ok = call_recovering_ip(
+                base,
+                extra,
+                lambda t=target: base.with_group(t["group_id"]).approve_request(t["user_id"]),
+            )
             entry["status"] = "approved" if ok else "failed"
         except VkApiError as exc:
             entry["status"] = "error"
